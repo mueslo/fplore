@@ -1,2 +1,10 @@
-# fplode
-FPLO data environment
+# fplore
+FPLO run evaluation
+
+## Installation
+
+blah blah virtualenv pip
+
+## Usage
+
+### Examples
