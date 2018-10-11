@@ -119,8 +119,8 @@ class BandWeights(FPLOFile):
         columns = weights_file.next()
         columns = re.sub("[ ]{2,}", "  ", columns)
         columns = columns.split("  ")[1:-1]  # remove # and \n
-        orbitals = columns[2:]
-        log.debug(orbitals)
+        self.orbitals = columns[2:]
+        log.debug(self.orbitals)
 
         bar = progressbar.ProgressBar(max_value=num_k*n_bands)
 
