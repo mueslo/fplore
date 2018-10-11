@@ -59,7 +59,7 @@ def walk(ns, declaration, value):
 class FPLOConfig(object):
     def __init__(self, path=None, **kwargs):
         if path:
-            with open(path, 'rb') as config_file:
+            with open(path, 'r') as config_file:
                 config_str = config_file.read()
         elif kwargs.get('f'):
             config_str = kwargs.get('f').read()

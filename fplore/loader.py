@@ -36,7 +36,7 @@ class FPLOFileType(type):
         fplo_file = getattr(cls, '__fplo_file__', None)
 
         if fplo_file:
-            if isinstance(fplo_file, basestring):
+            if isinstance(fplo_file, str):
                 register_loader(fplo_file)
             else:
                 for f in fplo_file:
@@ -64,7 +64,7 @@ class Error(FPLOFile):
     __fplo_file__ = "+error"
 
     def __init__(self, filepath):
-        self.messages = open(filepath, 'rb').read()
+        self.messages = open(filepath, 'r').read()
 
         if self.messages.strip() != "":
             log.warning('+error file contains:\n{}', self.messages)
@@ -74,7 +74,7 @@ class Run(FPLOFile):
     __fplo_file__ = ("+run",)
     def __init__(self, filepath):
         self.attrs = {}
-        with open(filepath, 'rb') as run_file:
+        with open(filepath, 'r') as run_file:
             for line in run_file:
                 key, value = line.split(':', 1)
                 self.attrs[key.strip()] = value.strip()
@@ -100,7 +100,7 @@ class BandWeights(FPLOFile):
     __fplo_file__ = ("+bweights", "+bweights_kp")
 
     def __init__(self, filepath):
-        weights_file = open(filepath, 'rb')
+        weights_file = open(filepath, 'r')
         header_str = weights_file.next()
         _0, _1, num_k, _3, n_bands, n_spinstates, _6, size2 = (
             f(x) for f, x in zip((int, float, int, int, int, int, int, int),
@@ -166,8 +166,8 @@ class Band(FPLOFile):
         ])
 
     def __init__(self, filepath):
-        band_kp_file = open(filepath, 'rb')
-        header_str = band_kp_file.next()
+        band_kp_file = open(filepath, 'r')
+        header_str = next(band_kp_file)
         
         log.debug(header_str)
         _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (f(x) for f,x in zip((int, float, int, int, int, int, int, int), header_str.split()[1:]))
@@ -178,14 +178,14 @@ class Band(FPLOFile):
         self.raw_data = self._gen_band_data_array(n_k, n_bands)
 
         for i, lines in bar(enumerate(
-                itertools.izip_longest(*[band_kp_file]*(1 + n_spinstates)))):
+                itertools.zip_longest(*[band_kp_file]*(1 + n_spinstates)))):
             # read two lines at once for n_spinstates=1, three for n_s=2
 
             # first line
             k = tuple(map(float, lines[0].split()[1:]))
 
             # second (+ third) line
-            e = [map(float, line_e.split()[1:]) for line_e in lines[1:]]
+            e = [list(map(float, line_e.split()[1:])) for line_e in lines[1:]]
 
             # todo: don't ignore magnetic split
             e = e[0]  # ignore magnetic split
