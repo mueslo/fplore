@@ -1,5 +1,9 @@
 # fplore
-FPLO run evaluation
+A python library for FPLO run evaluation.
+
+:construction: Still a work in progress, syntax may change without notice. 
+
+:raising_hand: If you have completed FPLO runs, It'd be super helpful if you could send them to me so I can test various cases and implement new features. Thanks!
 
 ## Installation
 
@@ -15,6 +19,8 @@ There are various ways of accessing your FPLO run data within fplore.
 
 
 ### Examples
+
+You can run the examples in the `examples` subdirectory by running them as a module, for example `python -m examples.band_plot`.
 
 #### Usage method 1 (data access via FPLO run)
 
@@ -36,7 +42,14 @@ run = FPLORun("/home/jdoe/fplo_run/")
 raw_band_data = run['+band'].data
 ```
 
-However, this will fail if you are using non-standard filenames. In that case you can manually load a file by using the appropriate loader class directly.
+For example, you can access arbitrary configuration settings from your `=.in` like so:
+
+```
+>>> dict(run["=.in"].bandstructure_plot.bandplot_control)
+{'bandplot': True, 'read_sympoints': True, 'ndivisions': 50, 'emin': -2, 'emax': 2, 'nptdos': 1000, 'plot_idos': False, 'plot_ndos': False, 'restrict_bands_to_window': False, 'coeffout': False}
+```
+
+However, this will fail if you are using non-standard filenames. In that case you can manually load a file by using the appropriate loader class directly. For example:
 
 ```python
 from fplore.loader import Band

@@ -67,7 +67,7 @@ class Error(FPLOFile):
         self.messages = open(filepath, 'r').read()
 
         if self.messages.strip() != "":
-            log.warning('+error file contains:\n{}', self.messages)
+            log.warning('+error file not empty:\n{}', self.messages)
 
 
 class Run(FPLOFile):
@@ -93,15 +93,27 @@ class Dens(FPLOConfig, FPLOFile):
 class Points(FPLOFile):
     __fplo_file__ = "+points"
     def __init__(self, filepath):
-        raise NotImplementedError
+        points_file = open(filepath, 'r')
 
+        n_points = int(next(points_file).split()[1])
+        lines_per_point = 4
+
+        self.data = []
+
+        for lines in itertools.zip_longest(*[points_file] * lines_per_point):
+            label_match = re.match("^# ' (.*) '$", lines[0])
+            label = label_match.group(1)
+            ik = float(lines[1].split()[0])
+            self.data.append((ik, label))
+
+        # todo: why are there 2 lines, and what's the second number?
 
 class BandWeights(FPLOFile):
     __fplo_file__ = ("+bweights", "+bweights_kp")
 
     def __init__(self, filepath):
         weights_file = open(filepath, 'r')
-        header_str = weights_file.next()
+        header_str = next(weights_file)
         _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (
             f(x) for f, x in zip((int, float, int, int, int, int, int, int),
                                  header_str.split()[1:]))
@@ -116,7 +128,7 @@ class BandWeights(FPLOFile):
         # _7: number of bands (2), ?
 
 
-        columns = weights_file.next()
+        columns = next(weights_file)
         columns = re.sub("[ ]{2,}", "  ", columns)
         columns = columns.split("  ")[1:-1]  # remove # and \n
         self.orbitals = columns[2:]
@@ -158,6 +170,7 @@ class Band(FPLOFile):
     @staticmethod
     def _gen_band_data_array(num_k, num_e):
         return np.zeros(num_k, dtype=[
+            ('ik', 'f4'),
             ('k', '3f4'),#[
                 #('x', 'f4'),
                 #('y', 'f4'),
@@ -185,11 +198,13 @@ class Band(FPLOFile):
             k = tuple(map(float, lines[0].split()[1:]))
 
             # second (+ third) line
+            ik = float(lines[1].split()[0])
             e = [list(map(float, line_e.split()[1:])) for line_e in lines[1:]]
 
             # todo: don't ignore magnetic split
             e = e[0]  # ignore magnetic split
 
+            self.raw_data[i]['ik'] = ik
             self.raw_data[i]['k'] = k
             self.raw_data[i]['e'] = e
 
@@ -541,7 +556,8 @@ class FPLORun(object):
     def plot_structure(self):
         raise NotImplementedError
 
-    def plot_bz(self, vectors=True, k_points=True, use_symmetry=True, high_symm_points=True):
+    def plot_bz(self, vectors=True, k_points=True, use_symmetry=False,
+                high_symm_points=True):
         # todo: move this function somewhere more appropriate?
         import matplotlib.pyplot as plt
         from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -559,7 +575,8 @@ class FPLORun(object):
             else:
                 points = self.band_data['k']
 
-            plt.plot(points[:, 0], points[:, 1], points[:, 2], '.')
+            plt.plot(points[:, 0], points[:, 1], points[:, 2], '.',
+                     label='k-point', ms=1)
 
         if vectors:
             from .plot import Arrow3D
@@ -578,5 +595,7 @@ class FPLORun(object):
         ax.set_xlabel('$k_x$')
         ax.set_ylabel('$k_y$')
         ax.set_zlabel('$k_z$')
+
+        plt.legend()
 
         plt.show()
