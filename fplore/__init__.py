@@ -17,7 +17,7 @@ class StreamHandler(logbook.more.ColorizingStreamHandlerMixin,
     pass
 
 
-sh = StreamHandler(sys.stdout, level='DEBUG', bubble=True)
+sh = StreamHandler(sys.stdout, level='INFO', bubble=True)
 sh.push_application()
 
 log = logbook.Logger("fplore")

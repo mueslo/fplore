@@ -102,7 +102,7 @@ class BandWeights(FPLOFile):
     def __init__(self, filepath):
         weights_file = open(filepath, 'r')
         header_str = weights_file.next()
-        _0, _1, num_k, _3, n_bands, n_spinstates, _6, size2 = (
+        _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (
             f(x) for f, x in zip((int, float, int, int, int, int, int, int),
                                  header_str.split()[1:]))
 
@@ -122,16 +122,16 @@ class BandWeights(FPLOFile):
         self.orbitals = columns[2:]
         log.debug(self.orbitals)
 
-        bar = progressbar.ProgressBar(max_value=num_k*n_bands)
+        bar = progressbar.ProgressBar(max_value=n_k*n_bands)
 
-        self.raw_data = np.zeros(num_k, dtype=[
+        self.raw_data = np.zeros(n_k, dtype=[
             ('ik', 'f4'),
             ('e', '{}f4'.format(n_bands)),
             ('c', '({0},{0})f4'.format(n_bands)),
         ])
 
         for i, lines in bar(enumerate(
-                itertools.izip_longest(*[weights_file] * n_bands))):
+                itertools.zip_longest(*[weights_file] * n_bands))):
 
             e = []
             weights = []
