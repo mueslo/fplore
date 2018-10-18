@@ -7,7 +7,7 @@ import os
 from six import with_metaclass
 import re
 import itertools
-from collections import Counter
+from collections import Counter, OrderedDict
 
 import numpy as np
 import progressbar
@@ -38,18 +38,27 @@ class FPLOFileType(type):
         if fplo_file:
             if isinstance(fplo_file, str):
                 register_loader(fplo_file)
+            elif isinstance(fplo_file, re.Pattern):
+                cls.registry['loaders_re'][fplo_file] = cls
             else:
                 for f in fplo_file:
                     register_loader(f)
 
 
 class FPLOFile(with_metaclass(FPLOFileType, object)):
-    registry = {'loaders': {}}
+    registry = {'loaders': {}, 'loaders_re': OrderedDict()}
 
     @classmethod
     def get_loader(cls, path):
         fname = os.path.basename(path)
-        return cls.registry['loaders'][fname]
+        try:
+            return cls.registry['loaders'][fname]
+        except KeyError:
+            for rgx, loader in cls.registry['loaders_re'].items():
+                if rgx.fullmatch(fname):
+                    return loader
+            raise
+
 
     @classmethod
     def load(cls, path):
@@ -81,10 +90,24 @@ class Run(FPLOFile):
 
 
 class DOS(FPLOFile):
-    __fplo_file__ = ("dos\..*")  # todo regex
-    def __init__(self, filepath):
-        raise NotImplementedError
+    __fplo_file__ = re.compile("\+dos\..+")
 
+    def __init__(self, filepath):
+        dos_file = open(filepath, 'r')
+
+        header = next(dos_file)
+        # todo: parse header & filename
+
+        data = []
+        for line in dos_file:
+            ls = line.split()
+            if len(ls) == 2:
+                data.append(tuple(map(float, line.split())))
+
+        self.data = np.array(data, dtype=[
+            ('e', 'f4'),
+            ('dos', 'f4'),
+        ])
 
 class Dens(FPLOConfig, FPLOFile):
     __fplo_file__ = "=.dens"

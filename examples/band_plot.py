@@ -1,9 +1,7 @@
 from fplore.loader import FPLORun
 import matplotlib.pyplot as plt
 from matplotlib import rc
-rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
-## for Palatino and other serif fonts use:
-#rc('font',**{'family':'serif','serif':['Palatino']})
+rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})
 rc('text', usetex=True)
 
 run = FPLORun("examples/graphene_slab")
@@ -20,5 +18,5 @@ plt.xticks(iks, labels)
 plt.ylabel(r"$(E - E_\mathrm{F})/\mathrm{eV}$")
 plt.ylim([-20, 20])
 
-plt.savefig("band_plot.png")
+plt.savefig("examples/band_plot.png")
 plt.show()
