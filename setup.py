@@ -39,7 +39,7 @@ setup(
         "progressbar2~=3.38",
         "matplotlib~=3.0",
     ],
-    python_requires="~=2.7",
+    python_requires=">=2.7, <4",
     tests_require=['pytest', 'pytest-logbook'],
     classifiers=[
         "Operating System :: OS Independent",
