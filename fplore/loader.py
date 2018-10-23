@@ -16,12 +16,15 @@ from scipy.spatial import KDTree
 from scipy.optimize import curve_fit
 from scipy.interpolate import griddata
 from scipy.spatial import ConvexHull
+from cached_property import cached_property
 from pymatgen.core import Structure, Lattice
 from pymatgen.symmetry.groups import (SpaceGroup, PointGroup,
                                       sg_symbol_from_int_number)
+from pymatgen.symmetry.bandstructure import HighSymmKpath
 
 from . import log
 from .config import FPLOConfig
+from .util import cartesian_product
 
 nbs = (0, 1, -1)
 neighbours = list(itertools.product(nbs, nbs, nbs))
@@ -248,14 +251,60 @@ class Band(FPLOFile):
         if shape == 3:
             return self.as_3d()
 
+    @cached_property
+    def reshaped_data(self):
+        # todo: apply symmetries to make semi-regular grid regular
+        # todo: add 2d reshape ability
+        # check if sample points form regular grid
+        # normalise ordering
+        # reshape
+        # make interpolator
+
+        xs = sorted(np.unique(self.data['k'][:, 0]))
+        ys = sorted(np.unique(self.data['k'][:, 1]))
+        zs = sorted(np.unique(self.data['k'][:, 2]))
+        axes = xs, ys, zs
+        shape = len(xs), len(ys), len(zs)
+
+        k = self.data['k']
+        sorted_data = self.data[np.lexsort((k[:, 0], k[:, 1], k[:, 2]))]
+        # sorted_k = sorted(self.data['k'], key=lambda x: (x[2], x[1], x[0]))
+
+        regular_grid_coords = cartesian_product(*axes)
+
+        if not np.array_equal(sorted_data['k'], regular_grid_coords):
+            log.debug('detected irregular grid')
+            return
+
+        log.debug('detected regular grid')
+
+        # ordered by reversed shape because sort order is 0->1->2 not 0<-1<-2
+        # todo think about ordering 0 <- 1 <- 2 instead
+
+        return axes, sorted_data.reshape(*reversed(shape))
+
+        # reshaped_data['k'] is now equal to
+        # np.array(np.meshgrid(xs, ys, zs, indexing='ij')).T
+        # todo: test
+
+    @cached_property
+    def interpolator(self):
+        from scipy.interpolate import RegularGridInterpolator
+
+        if self.reshaped_data is None:
+            return
+
+        axes, data = self.reshaped_data
+        return RegularGridInterpolator(axes, data['e'])
 
     def to_grid(self):
+        """Create a regular grid by sampling"""
         from scipy.interpolate import griddata
 
         # define grid.
-        xi = np.linspace(np.min(self.data['k']['x']), np.max(self.data['k']['x']), 100)
-        yi = np.linspace(np.min(self.data['k']['y']), np.max(self.data['k']['y']), 100)
-        zi = np.linspace(np.min(self.data['k']['z']), np.max(self.data['k']['z']), 100)
+        xi = np.linspace(np.min(self.data['k'][:, 0]), np.max(self.data['k'][:, 0]), 100)
+        yi = np.linspace(np.min(self.data['k'][:, 1]), np.max(self.data['k'][:, 1]), 100)
+        zi = np.linspace(np.min(self.data['k'][:, 2]), np.max(self.data['k'][:, 2]), 100)
 
         log.debug('xi {}..{}', xi[0], xi[-1])
         log.debug('yi {}..{}', yi[0], yi[-1])
@@ -302,8 +351,9 @@ class Band(FPLOFile):
         
         
     def bands_at_energy(self, e=0, tol=0.05):
-        idx_band = np.any(np.abs(self.e - e) < tol, axis=0)
-        return np.where(idx_band)[0] #indices of levels that come close to E_f
+        """Returns the indices of bands which cross a certain energy level"""
+        idx_band = np.any(np.abs(self.data['e'] - e) < tol, axis=0)
+        return np.where(idx_band)[0]
 
     @staticmethod
     def smooth_overlap(e_k_3d, e=0., scale=0.02):
@@ -367,6 +417,7 @@ def apply_symmetry(data, symm_ops):
 
 class FPLORun(object):
     def __init__(self, directory):
+        log.debug("Initialising FPLO run in directory {}", directory)
 
         self.directory = directory
         self.files = {}
@@ -387,10 +438,11 @@ class FPLORun(object):
                     self.files[fname] = FPLOFile.load(
                         os.path.join(self.directory, fname))
 
-
-        log.info("Loaded files: {}", self.files.keys())
-        log.info("Loadable files: {}", loadable - set(self.files.keys()))
-        log.debug("Not loadable: {}", set(fnames) - loadable)
+        log.info("Loaded files: {}", ", ".join(sorted(self.files.keys())))
+        log.info("Loadable files: {}", ", ".join(sorted(
+            loadable - self.files.keys())))
+        log.debug("Not loadable: {}", ", ".join(sorted(
+            set(fnames) - loadable)))
 
     def __getitem__(self, item):
         try:
@@ -399,7 +451,6 @@ class FPLORun(object):
             self.files[item] = FPLOFile.load(
                 os.path.join(self.directory, item))
             return self.files[item]
-            #raise KeyError("No loader defined for '{}'.".format(item))
 
     @property
     def attrs(self):
@@ -456,14 +507,16 @@ class FPLORun(object):
             return self.primitive_lattice.get_brillouin_zone()
         return self.lattice.get_brillouin_zone()
 
-    @property
+    @cached_property
     def band_data(self):
         """Returns the band data folded back to the first BZ"""
-        band = self.files.get('+band') or self['+band_kp']
+        try:
+            band = self['+band']
+        except FileNotFoundError:
+            band = self['+band_kp']
 
         # coordinates are in terms of conventional unit cell BZ
-        points = np.dot(self.lattice.reciprocal_lattice.matrix,
-                        band.data['k'].T).T
+        points = np.dot(band.data['k'], self.lattice.reciprocal_lattice.matrix)
 
         # wrap points to primitive unit cell BZ
         points = wrap_k(self.primitive_lattice.reciprocal_lattice.matrix,
@@ -579,18 +632,14 @@ class FPLORun(object):
     def plot_structure(self):
         raise NotImplementedError
 
-    def plot_bz(self, vectors=True, k_points=True, use_symmetry=False,
+    def plot_bz(self, ax, vectors=True, k_points=False, use_symmetry=False,
                 high_symm_points=True):
         # todo: move this function somewhere more appropriate?
-        import matplotlib.pyplot as plt
         from mpl_toolkits.mplot3d.art3d import Poly3DCollection
         from matplotlib import colors as mcolors
 
         def cc(arg):
             return mcolors.to_rgba(arg, alpha=0.1)
-
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
 
         if k_points:
             if use_symmetry:
@@ -598,8 +647,8 @@ class FPLORun(object):
             else:
                 points = self.band_data['k']
 
-            plt.plot(points[:, 0], points[:, 1], points[:, 2], '.',
-                     label='k-point', ms=1)
+            ax.plot(points[:, 0], points[:, 1], points[:, 2], '.',
+                    label='sample k-point', ms=1)
 
         if vectors:
             from .plot import Arrow3D
@@ -612,13 +661,80 @@ class FPLORun(object):
                              edgecolors='k'))
 
         if high_symm_points:
-            # todo add pymatgen.symmetry.bandstructure.HighSymmKpath
-            pass
+            points = self.high_symm_kpoints
+            ax.plot(*zip(*points.values()), 'o', label='high symmetry point', color='k', ms='1')
+
+            for kpath in self.high_symm_kpaths:
+                path = [points[lbl] for lbl in kpath]
+                ax.plot(*zip(*path), '-', color='k', alpha=0.5)
+
+            for label, coord in points.items():
+                ax.text(*coord, '${}$'.format(label), color='k')
 
         ax.set_xlabel('$k_x$')
         ax.set_ylabel('$k_y$')
         ax.set_zlabel('$k_z$')
+        ax.legend()
 
-        plt.legend()
+    @cached_property
+    def high_symm_kpaths(self):
+        return HighSymmKpath(self.primitive_structure).kpath['path']
 
-        plt.show()
+    @cached_property
+    def high_symm_kpoints_fractional(self):
+        return HighSymmKpath(self.primitive_structure).kpath['kpoints']
+
+    @cached_property
+    def high_symm_kpoints(self):
+        points = self.high_symm_kpoints_fractional
+        for label, coord in points.items():
+            points[label] = np.dot(
+                coord, self.primitive_lattice.reciprocal_lattice.matrix)
+        return points
+
+    # todo: move these to util
+    def linspace(self, start, stop, *args,
+                 fractional_coordinates=True, **kwargs):
+        """Return evenly spaced coordinates between two arbitrary 3d points"""
+
+        if fractional_coordinates:
+            hskp = self.high_symm_kpoints_fractional
+        else:
+            hskp = self.high_symm_kpoints
+
+        if isinstance(start, str):
+            start = hskp[start]
+
+        if isinstance(stop, str):
+            stop = hskp[stop]
+
+        ls = np.array([np.linspace(start[0], stop[0], *args, **kwargs),
+                       np.linspace(start[1], stop[1], *args, **kwargs),
+                       np.linspace(start[2], stop[2], *args, **kwargs)]).T
+
+        return ls
+
+    def linspace_plane(self, start, stop1, stop2, num=(50, 50),
+                       fractional_coordinates=True):
+        if fractional_coordinates:
+            hskp = self.high_symm_kpoints_fractional
+        else:
+            hskp = self.high_symm_kpoints
+
+        if isinstance(start, str):
+            start = hskp[start]
+
+        if isinstance(stop1, str):
+            stop1 = hskp[stop1]
+
+        if isinstance(stop2, str):
+            stop2 = hskp[stop2]
+
+        vec1 = stop1 - start
+        vec2 = stop2 - start
+
+        grid = np.array(np.meshgrid(np.linspace(0, 1, num=num[0]),
+                                    np.linspace(0, 1, num=num[1]))).T
+        A = np.vstack([vec1, vec2])
+
+        return np.dot(grid, A) + start

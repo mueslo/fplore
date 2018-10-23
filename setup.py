@@ -34,6 +34,7 @@ setup(
         "scipy~=1.1",
         "pymatgen~=2018.9.30",
         "orderedattrdict~=1.5",
+        "cached-property~=1.5",
         "logbook~=1.4",
         "pyparsing~=2.2",
         "progressbar2~=3.38",
