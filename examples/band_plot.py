@@ -1,10 +1,19 @@
+"""
+==================
+Standard band plot
+==================
+
+"""
+
 from fplore.loader import FPLORun
 import matplotlib.pyplot as plt
 from matplotlib import rc
 rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})
 rc('text', usetex=True)
 
-run = FPLORun("examples/graphene_slab")
+run = FPLORun("../example_data/graphene_slab")
+
+fig = plt.figure()
 
 points = run["+points"].data
 iks, labels = zip(*points)
@@ -18,5 +27,4 @@ plt.xticks(iks, labels)
 plt.ylabel(r"$(E - E_\mathrm{F})/\mathrm{eV}$")
 plt.ylim([-20, 20])
 
-plt.savefig("examples/band_plot.png")
 plt.show()
