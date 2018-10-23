@@ -1,16 +1,15 @@
 #!/usr/bin/env python2
 
-
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d import proj3d
 #from scipy.spatial import Delaunay
+from matplotlib.collections import PolyCollection
 
-from matplotlib.patches import Polygon
-from matplotlib.collections import PolyCollection, PatchCollection
+from . import log
 
-#from http://stackoverflow.com/questions/23840756/how-to-disable-perspective-in-mplot3d
+
+# from http://stackoverflow.com/questions/23840756/how-to-disable-perspective-in-mplot3d
 def orthogonal_proj(zfront, zback):
     a = (zfront+zback)/(zfront-zback)
     b = -2*(zfront*zback)/(zfront-zback)
@@ -19,7 +18,8 @@ def orthogonal_proj(zfront, zback):
                       [0,0,a,b],
                       [0,0,-1e-4,zback]])
 
-def projected_area(xyz,axis=0):
+
+def projected_area(xyz, axis):
     x = xyz[..., 1-axis]
     e = xyz[..., 2]
 
@@ -41,26 +41,30 @@ def projected_area(xyz,axis=0):
 
     return ret
 
-def project(x, y, z, axis=0):
+
+def project(x, y, z, axis=1):
     #TODO project along arbitrary vectors
     # for that we need to know the total area of a self-intersecting quadrilateral, which is ???
     """
-    x, y: MxN (meshgrid)
+    Projects z(x,y) along an axis.
+    Useful for example for showing bulk states in slab calculations.
+    x, y: MxN (meshgrid with 'ij' indexing)
     z: MxN
-    axis: int
+    axis: int (axis along which to project)
     """
     #cyclical iteration:
     #cyc_squ[1, 0] = 
-    # x -> (2nd axis) (because meshgrid swaps axes)
-    #o - 0 - 1 - o y (1st axis)
+    # y -> (2nd axis)
+    #o - 0 - 3 - o x (1st axis)
     #|   |   |   | |
-    #o - 3 - 2 - o v
+    #o - 1 - 2 - o v
     #|   |   |   |
     #o - o - o - o
     #|   |   |   |
     #o - o - o - o
 
-    p = np.stack([x,y,z]).transpose(1,2,0) # (xyz),i,j -> i,j,(xyz)
+    #p = np.stack([x,y,z]).transpose(1,2,0) # (xyz),i,j -> i,j,(xyz)
+    p = np.stack([x, y, z]).T
 
     #                         0          +dx        +dy        -dx
     cyc_squ = np.stack([p[:-1, :-1], p[:-1, 1:], p[1:, 1:], p[1:, :-1]]).transpose((1,2,0,3))
@@ -68,13 +72,13 @@ def project(x, y, z, axis=0):
     #          idx 2:    4 circular path
     #          idx 3:    3 (xyz) coordinates
 
-    print "Generating", np.prod(cyc_squ.shape[:2]), "polygons"
+    log.debug("Generating {} polygons", np.prod(cyc_squ.shape[:2]))
 
     pc = list() # polygons (quadrilaterals)
     fcs = list() # their colors and translucency
-		                 #x                     x
+    #                     x                     x
     xs = cyc_squ[:, :, 2, 0] - cyc_squ[:, :, 0, 0]
-                         #y                     y
+    #                     y                     y
     ys = cyc_squ[:, :, 2, 1] - cyc_squ[:, :, 0, 1]
     areas = xs*ys # for a rectilinear grid
                                                 #e/z
@@ -83,23 +87,23 @@ def project(x, y, z, axis=0):
     with np.errstate(divide='ignore'):
         alphas = 0.1 * areas/proj_areas
         alphas[alphas > 1] = 1.
-    #print areas.shape, cyc_squ.shape
-    #yc_squ = np.stack([cyc_squ, areas], axis=0)
+    # print areas.shape, cyc_squ.shape
+    # yc_squ = np.stack([cyc_squ, areas], axis=0)
 
     #                   x     y     z
     idx_visible_axes = [True, True, True]
     idx_visible_axes[axis] = False
 
-    # TODO remove loop
+    # TODO remove loop, if possible
     for iix, ix in enumerate(cyc_squ):
         for iiy, iy in enumerate(ix):
-	        #alpha = min(1, np.min(areas)/area)
-	        #alpha = np.min(areas)/area
-	        alpha = alphas[iix, iiy]
-	        #print iy, area, alpha
-	        #polygon = Polygon(iy[:, 1:], True, fc='k', lw=0)
-	        pc.append(iy[:, idx_visible_axes])
-	        fcs.append((0, 0, 0, alpha))
+            # alpha = min(1, np.min(areas)/area)
+            # alpha = np.min(areas)/area
+            alpha = alphas[iix, iiy]
+            # print iy, area, alpha
+            # polygon = Polygon(iy[:, 1:], True, fc='k', lw=0)
+            pc.append(iy[:, idx_visible_axes])
+            fcs.append((0, 0, 0, alpha))
 
     pc = PolyCollection(pc, facecolors=fcs, rasterized=True)
     return pc
@@ -111,7 +115,7 @@ if __name__ == "__main__":
     y_scale = np.linspace(0, np.pi/2, 250)
 
     axis_labels=("k_x", "k_y", "E")
-    x, y = np.meshgrid(x_scale, y_scale)
+    x, y = np.meshgrid(x_scale, y_scale, indexing="ij")
     z = np.sin(x+y)
 
     proj_axis=1
@@ -125,11 +129,10 @@ if __name__ == "__main__":
     ax.set_xlabel(axis_labels[1-proj_axis])
     ax.set_ylabel(axis_labels[2])
 
-
     ax2 = fig.add_subplot(1, 3, 2, projection='3d')
 
     proj3d.persp_transformation = orthogonal_proj
-    ax2.plot_surface(x,y,z, shade=True, alpha=0.9, linewidth=0)
+    ax2.plot_surface(x, y, z, shade=True, alpha=0.9, linewidth=0)
     ax2.set_xlabel(axis_labels[0])
     ax2.set_ylabel(axis_labels[1])
     ax2.set_zlabel(axis_labels[2])
