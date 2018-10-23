@@ -41,7 +41,10 @@ setup(
         "matplotlib~=3.0",
     ],
     python_requires=">=2.7, <4",
-    tests_require=['pytest', 'pytest-logbook'],
+    extras_require={
+        'tests': ['pytest', 'pytest-logbook'],
+        'docs': ['sphinx', 'sphinx-gallery'],
+    },
     classifiers=[
         "Operating System :: OS Independent",
         "Programming Language :: Python",
