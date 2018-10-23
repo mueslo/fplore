@@ -9,6 +9,13 @@ A python library for FPLO run evaluation.
 
 blah blah virtualenv pip
 
+## Gallery
+[
+![Brillouin zone](https://fplore.readthedocs.io/en/latest/_images/sphx_glr_bz_plot_thumb.png)
+![Band plot](https://fplore.readthedocs.io/en/latest/_images/sphx_glr_band_plot_thumb.png)
+![Band projection](https://fplore.readthedocs.io/en/latest/_images/sphx_glr_project_thumb.png)
+](https://fplore.readthedocs.io/en/latest/gallery/)
+
 ## Usage
 
 There are various ways of accessing your FPLO run data within fplore.
