@@ -28,6 +28,7 @@ from .util import cartesian_product
 
 nbs = (0, 1, -1)
 neighbours = list(itertools.product(nbs, nbs, nbs))
+RegexType = type(re.compile(''))
 
 
 class FPLOFileType(type):
@@ -41,7 +42,7 @@ class FPLOFileType(type):
         if fplo_file:
             if isinstance(fplo_file, str):
                 register_loader(fplo_file)
-            elif isinstance(fplo_file, re.Pattern):
+            elif isinstance(fplo_file, RegexType):
                 cls.registry['loaders_re'][fplo_file] = cls
             else:
                 for f in fplo_file:
