@@ -1,9 +1,16 @@
+![](https://img.shields.io/github/release/mueslo/fplore.svg?style=flat-square)
+![](https://img.shields.io/pypi/v/fplore.svg?style=flat-square)
+![](https://img.shields.io/travis/mueslo/fplore.svg?style=flat-square)
+![](https://img.shields.io/readthedocs/fplore.svg?style=flat-square)
+![](https://img.shields.io/github/license/mueslo/fplore.svg?style=flat-square)
+
+
 # fplore
 A python library for FPLO run evaluation.
 
-:construction: Still a work in progress, syntax may change without notice. 
+:construction: Still a work in progress, syntax may change without notice. :construction:
 
-:raising_hand: If you have completed FPLO runs, It'd be super helpful if you could send them to me so I can test various cases and implement new features. Thanks!
+:raising_hand: If you have completed FPLO runs, It'd be super helpful if you could send them to me so I can test various cases and implement new features. Thanks! Either drop me an e-mail or submit a pull request [here](https://github.com/mueslo/fplore_example_data/).
 
 ## Installation
 
