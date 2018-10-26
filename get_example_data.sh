@@ -1,4 +1,7 @@
 #!/bin/sh
 
-mkdir example_data
-wget -qO- https://mueslo.de/fplore/example_data.tar.gz | tar xvz -C example_data
+url=https://github.com/mueslo/fplore_example_data/releases/download/v1/example_data.tar.gz
+dirname=example_data
+
+mkdir $dirname
+wget -qO- $url | tar xvz -C $dirname
