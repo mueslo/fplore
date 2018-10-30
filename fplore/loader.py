@@ -31,17 +31,25 @@ neighbours = list(itertools.product(nbs, nbs, nbs))
 RegexType = type(re.compile(''))
 
 
+class FPLOFileException(Exception):
+    pass
+
+
 class FPLOFileType(type):
     def __init__(cls, name, bases, attrs):
         def register_loader(filename):
             cls.registry['loaders'][filename] = cls
 
-        # todo: regex filenames, e.g. "+dos.*"
         fplo_file = getattr(cls, '__fplo_file__', None)
 
         if fplo_file:
             if isinstance(fplo_file, str):
                 register_loader(fplo_file)
+
+                if (fplo_file.startswith("=.") or
+                        fplo_file in ('+error', '+run')):
+                    cls.load_default = True
+
             elif isinstance(fplo_file, RegexType):
                 cls.registry['loaders_re'][fplo_file] = cls
             else:
@@ -51,9 +59,11 @@ class FPLOFileType(type):
 
 class FPLOFile(with_metaclass(FPLOFileType, object)):
     registry = {'loaders': {}, 'loaders_re': OrderedDict()}
+    is_loaded = False
+    load_default = False
 
     @classmethod
-    def get_loader(cls, path):
+    def get_file_class(cls, path):
         fname = os.path.basename(path)
         try:
             return cls.registry['loaders'][fname]
@@ -63,31 +73,56 @@ class FPLOFile(with_metaclass(FPLOFileType, object)):
                     return loader
             raise
 
-
     @classmethod
-    def load(cls, path):
+    def open(cls, path, load=False):
         if os.path.isdir(path):
             return FPLORun(path)
 
-        loader = cls.get_loader(path)
-        return loader(path)
+        FileClass = cls.get_file_class(path)
+        file_obj = FileClass(path)
+        if load:
+            file_obj.load()
+
+        return file_obj
+
+    @classmethod
+    def load(cls, path):
+        cls.open(path, load=True)
+
+    def __load(self):
+        if self.is_loaded:
+            log.notice('Reloading {}', self.filepath)
+
+        try:
+            self._load()
+        except KeyError:
+            raise FPLOFileException(
+                "FPLO file class {} has no '_load' function".format(
+                    self.__name__))
+
+        self.is_loaded = True
+
+    def __init__(self, filepath):
+        self.load = self.__load
+        self.filepath = filepath
 
 
 class Error(FPLOFile):
     __fplo_file__ = "+error"
 
-    def __init__(self, filepath):
-        self.messages = open(filepath, 'r').read()
+    def _load(self):
+        self.messages = open(self.filepath, 'r').read()
 
         if self.messages.strip() != "":
             log.warning('+error file not empty:\n{}', self.messages)
 
 
 class Run(FPLOFile):
-    __fplo_file__ = ("+run",)
-    def __init__(self, filepath):
+    __fplo_file__ = "+run"
+
+    def _load(self):
         self.attrs = {}
-        with open(filepath, 'r') as run_file:
+        with open(self.filepath, 'r') as run_file:
             for line in run_file:
                 key, value = line.split(':', 1)
                 self.attrs[key.strip()] = value.strip()
@@ -96,8 +131,8 @@ class Run(FPLOFile):
 class DOS(FPLOFile):
     __fplo_file__ = re.compile("\+dos\..+")
 
-    def __init__(self, filepath):
-        dos_file = open(filepath, 'r')
+    def _load(self):
+        dos_file = open(self.filepath, 'r')
 
         header = next(dos_file)
         # todo: parse header & filename
@@ -113,14 +148,16 @@ class DOS(FPLOFile):
             ('dos', 'f4'),
         ])
 
+
 class Dens(FPLOConfig, FPLOFile):
     __fplo_file__ = "=.dens"
 
 
 class Points(FPLOFile):
     __fplo_file__ = "+points"
-    def __init__(self, filepath):
-        points_file = open(filepath, 'r')
+
+    def _load(self):
+        points_file = open(self.filepath, 'r')
 
         n_points = int(next(points_file).split()[1])
         lines_per_point = 4
@@ -138,8 +175,8 @@ class Points(FPLOFile):
 class BandWeights(FPLOFile):
     __fplo_file__ = ("+bweights", "+bweights_kp")
 
-    def __init__(self, filepath):
-        weights_file = open(filepath, 'r')
+    def _load(self):
+        weights_file = open(self.filepath, 'r')
         header_str = next(weights_file)
         _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (
             f(x) for f, x in zip((int, float, int, int, int, int, int, int),
@@ -154,7 +191,6 @@ class BandWeights(FPLOFile):
         # _6: ?
         # _7: number of bands (2), ?
 
-
         columns = next(weights_file)
         columns = re.sub("[ ]{2,}", "  ", columns)
         columns = columns.split("  ")[1:-1]  # remove # and \n
@@ -163,7 +199,7 @@ class BandWeights(FPLOFile):
 
         bar = progressbar.ProgressBar(max_value=n_k*n_bands)
 
-        self.raw_data = np.zeros(n_k, dtype=[
+        self.data = np.zeros(n_k, dtype=[
             ('ik', 'f4'),
             ('e', '{}f4'.format(n_bands)),
             ('c', '({0},{0})f4'.format(n_bands)),
@@ -180,15 +216,12 @@ class BandWeights(FPLOFile):
                 e.append(data[1])
                 weights.append(data[2:])
 
-            i_k = data[0]
-
-            self.raw_data[i]['ik'] = i_k
-            self.raw_data[i]['e'] = e
-            self.raw_data[i]['c'] = weights
+            self.data[i]['ik'] = data[0]
+            self.data[i]['e'] = e
+            self.data[i]['c'] = weights
 
         log.info('Band weight data is {} MiB in size',
-                   self.raw_data.nbytes / (1024 * 1024))
-        self.data = self.raw_data
+                 self.data.nbytes / (1024 * 1024))
 
 
 class Band(FPLOFile):
@@ -205,20 +238,26 @@ class Band(FPLOFile):
             ('e', 'f4', (num_e,)),
         ])
 
-    def __init__(self, filepath):
-        band_kp_file = open(filepath, 'r')
+    def _load(self):
+        band_kp_file = open(self.filepath, 'r')
         header_str = next(band_kp_file)
-        
+
         log.debug(header_str)
-        _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (f(x) for f,x in zip((int, float, int, int, int, int, int, int), header_str.split()[1:]))
+        _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (f(x) for f, x in
+                                                             zip((int, float,
+                                                                  int, int, int,
+                                                                  int, int,
+                                                                  int),
+                                                                 header_str.split()[
+                                                                 1:]))
 
         bar = progressbar.ProgressBar(max_value=n_k)
 
         # k and e appear to be 4-byte (32 bit) floats
-        self.raw_data = self._gen_band_data_array(n_k, n_bands)
+        self.data = self._gen_band_data_array(n_k, n_bands)
 
         for i, lines in bar(enumerate(
-                itertools.zip_longest(*[band_kp_file]*(1 + n_spinstates)))):
+                itertools.zip_longest(*[band_kp_file] * (1 + n_spinstates)))):
             # read two lines at once for n_spinstates=1, three for n_s=2
 
             # first line
@@ -231,13 +270,12 @@ class Band(FPLOFile):
             # todo: don't ignore magnetic split
             e = e[0]  # ignore magnetic split
 
-            self.raw_data[i]['ik'] = ik
-            self.raw_data[i]['k'] = k
-            self.raw_data[i]['e'] = e
+            self.data[i]['ik'] = ik
+            self.data[i]['k'] = k
+            self.data[i]['e'] = e
 
         log.info('Band data is {} MiB in size',
-                   self.raw_data.nbytes / (1024 * 1024))
-        self.data = self.raw_data
+                 self.data.nbytes / (1024 * 1024))
 
     def reshape(self, dimensions=None):
         shape = dimensions or self.shape()
@@ -426,32 +464,30 @@ class FPLORun(object):
         # print available files for debug purposes
         fnames = [f for f in os.listdir(directory)
                   if os.path.isfile(os.path.join(directory, f))]
-        loadable = set(fnames)
+        loaded = set()
         for fname in fnames:
             try:
-                loader = FPLOFile.get_loader(os.path.join(directory, fname))
+                self.files[fname] = FPLOFile.open(
+                    os.path.join(directory, fname))
             except KeyError as e:
-                loadable.remove(fname)
+                pass
             else:
-                # load some files by default
-                # todo: move to metaclass
-                if fname.startswith("=.") or fname in ('+error', '+run'):
-                    self.files[fname] = FPLOFile.load(
-                        os.path.join(self.directory, fname))
+                if self.files[fname].load_default:
+                    self.files[fname].load()
+                    loaded.add(fname)
 
-        log.info("Loaded files: {}", ", ".join(sorted(self.files.keys())))
+        log.info("Loaded files: {}", ", ".join(sorted(loaded)))
         log.info("Loadable files: {}", ", ".join(sorted(
-            loadable - self.files.keys())))
+            self.files.keys() - loaded)))
         log.debug("Not loadable: {}", ", ".join(sorted(
-            set(fnames) - loadable)))
+            set(fnames) - self.files.keys())))
 
     def __getitem__(self, item):
-        try:
-            return self.files[item]
-        except KeyError:
-            self.files[item] = FPLOFile.load(
-                os.path.join(self.directory, item))
-            return self.files[item]
+        f = self.files[item]
+        if not f.is_loaded:
+            log.debug('Loading {} due to getitem access via FPLORun', item)
+            f.load()
+        return f
 
     @property
     def attrs(self):

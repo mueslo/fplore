@@ -57,16 +57,9 @@ def walk(ns, declaration, value):
 
 
 class FPLOConfig(object):
-    def __init__(self, path=None, **kwargs):
-        if path:
-            with open(path, 'r') as config_file:
-                config_str = config_file.read()
-        elif kwargs.get('f'):
-            config_str = kwargs.get('f').read()
-        elif kwargs.get('config_str'):
-            config_str = kwargs.get('config_str')
-        else:
-            raise NotImplementedError # bare config, maybe from default?
+    def _load(self):
+        with open(self.filepath, 'r') as config_file:
+            config_str = config_file.read()
         self.parse_config(config_str)
             
     def parse_config(self, config_str):
