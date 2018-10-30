@@ -63,24 +63,25 @@ def project(x, y, z, axis=1):
     #|   |   |   |
     #o - o - o - o
 
-    #p = np.stack([x,y,z]).transpose(1,2,0) # (xyz),i,j -> i,j,(xyz)
-    p = np.stack([x, y, z]).T
+    p = np.stack([x, y, z]).transpose(1, 2, 0)  # 3,n_x,n_y -> n_x,n_y,3
 
-    #                         0          +dx        +dy        -dx
-    cyc_squ = np.stack([p[:-1, :-1], p[:-1, 1:], p[1:, 1:], p[1:, :-1]]).transpose((1,2,0,3))
-    # cyc squ: idx 0, 1: M-1 x N-1 cooridnates to circular path
+    cyc_squ = np.stack(
+        #  0            +dx         +dy        -dx
+        [p[:-1, :-1], p[1:, :-1], p[1:, 1:], p[:-1, 1:]]).transpose(
+        (1, 2, 0, 3))
+    # cyc squ: idx 0, 1: M-1 x N-1 coordinates to circular paths
     #          idx 2:    4 circular path
     #          idx 3:    3 (xyz) coordinates
 
     log.debug("Generating {} polygons", np.prod(cyc_squ.shape[:2]))
 
-    pc = list() # polygons (quadrilaterals)
-    fcs = list() # their colors and translucency
+    pc = list()  # polygons (quadrilaterals)
+    fcs = list()  # their colors and translucency
     #                     x                     x
     xs = cyc_squ[:, :, 2, 0] - cyc_squ[:, :, 0, 0]
     #                     y                     y
     ys = cyc_squ[:, :, 2, 1] - cyc_squ[:, :, 0, 1]
-    areas = xs*ys # for a rectilinear grid
+    areas = xs*ys  # for a rectilinear grid
                                                 #e/z
     proj_areas = projected_area(cyc_squ, axis=axis)
 

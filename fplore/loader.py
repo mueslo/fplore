@@ -312,19 +312,15 @@ class Band(FPLOFile):
         regular_grid_coords = cartesian_product(*axes)
 
         if not np.array_equal(sorted_data['k'], regular_grid_coords):
-            log.debug('detected irregular grid')
+            log.debug('detected irregular k-sample grid')
             return
 
-        log.debug('detected regular grid')
+        log.debug('detected regular k-sample grid of shape {}', shape)
 
         # ordered by reversed shape because sort order is 0->1->2 not 0<-1<-2
         # todo think about ordering 0 <- 1 <- 2 instead
 
-        return axes, sorted_data.reshape(*reversed(shape))
-
-        # reshaped_data['k'] is now equal to
-        # np.array(np.meshgrid(xs, ys, zs, indexing='ij')).T
-        # todo: test
+        return axes, sorted_data.reshape(*reversed(shape)).T
 
     @cached_property
     def interpolator(self):

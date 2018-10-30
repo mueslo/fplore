@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from fplore.loader import FPLORun
 from fplore.project import project
 
-run = bulk_run_yb3 = FPLORun("../example_data/fermisurf")
+run = FPLORun("../example_data/fermisurf")
 
 X_point = np.array((-0.5, 0, 0))
 M_point = np.array((-0.5, -0.5, 0))
@@ -23,8 +23,7 @@ ip = run["+band_kp"].interpolator
 
 f, (ax1, ax2) = plt.subplots(1, 2, sharey=True, sharex=True)
 
-#path = run.linspace('\\Gamma', M_point)
-path = run.linspace_plane('\\Gamma', M_point, np.array((0, 0, -0.5)),
+path = run.linspace_plane(X_point, M_point, np.array((0, 0, -0.5)),
                           num=(250, 50))
 
 bands_along_path = ip(path)
