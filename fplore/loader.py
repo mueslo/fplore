@@ -545,7 +545,7 @@ class FPLORun(object):
         """Returns the band data folded back to the first BZ"""
         try:
             band = self['+band']
-        except FileNotFoundError:
+        except KeyError:
             band = self['+band_kp']
 
         # coordinates are in terms of conventional unit cell BZ
