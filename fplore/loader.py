@@ -391,12 +391,12 @@ class Band(FPLOFile):
         return np.where(idx_band)[0]
 
     @staticmethod
-    def smooth_overlap(e_k_3d, e=0., scale=0.02):
+    def smooth_overlap(e_k_3d, e=0., scale=0.02, axis=2):
         e_k_3d[np.isnan(e_k_3d)] = -np.inf
         t1 = norm.pdf(e_k_3d, loc=e, scale=scale)
         # todo interpolate axis 2
 
-        return np.sum(t1, axis=(2, 3))
+        return np.sum(t1, axis=(axis, 3))
 
 
 class InFile(FPLOConfig, FPLOFile):
