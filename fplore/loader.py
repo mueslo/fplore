@@ -172,6 +172,8 @@ class Points(FPLOFile):
 
         # todo: why are there 2 lines, and what's the second number?
 
+
+# todo unify/subclass Band parser
 class BandWeights(FPLOFile):
     __fplo_file__ = ("+bweights", "+bweights_kp")
 
@@ -243,13 +245,9 @@ class Band(FPLOFile):
         header_str = next(band_kp_file)
 
         log.debug(header_str)
-        _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (f(x) for f, x in
-                                                             zip((int, float,
-                                                                  int, int, int,
-                                                                  int, int,
-                                                                  int),
-                                                                 header_str.split()[
-                                                                 1:]))
+        _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (
+            f(x) for f, x in zip((int, float, int, int, int, int, int, int),
+                                 header_str.split()[1:]))
 
         bar = progressbar.ProgressBar(max_value=n_k)
 
@@ -306,7 +304,7 @@ class Band(FPLOFile):
         shape = len(xs), len(ys), len(zs)
 
         k = self.data['k']
-        sorted_data = self.data[np.lexsort((k[:, 0], k[:, 1], k[:, 2]))]
+        sorted_data = self.data[np.lexsort((k[:, 2], k[:, 1], k[:, 0]))]
         # sorted_k = sorted(self.data['k'], key=lambda x: (x[2], x[1], x[0]))
 
         regular_grid_coords = cartesian_product(*axes)
@@ -317,10 +315,7 @@ class Band(FPLOFile):
 
         log.debug('detected regular k-sample grid of shape {}', shape)
 
-        # ordered by reversed shape because sort order is 0->1->2 not 0<-1<-2
-        # todo think about ordering 0 <- 1 <- 2 instead
-
-        return axes, sorted_data.reshape(*reversed(shape)).T
+        return axes, sorted_data.reshape(*shape)
 
     @cached_property
     def interpolator(self):
