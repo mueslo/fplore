@@ -23,7 +23,7 @@ ip = run["+band_kp"].interpolator
 
 f, (ax1, ax2) = plt.subplots(1, 2, sharey=True, sharex=True)
 
-path = run.linspace_plane(X_point, M_point, np.array((0, 0, -0.5)),
+path = run.linspace_ng(X_point, M_point, np.array((0, 0, -0.5)),
                           num=(250, 50))
 
 bands_along_path = ip(path)

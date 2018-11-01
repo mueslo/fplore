@@ -720,11 +720,16 @@ class FPLORun(object):
                 coord, self.primitive_lattice.reciprocal_lattice.matrix)
         return points
 
-    # todo: move these to util
-    def linspace(self, start, stop, *args,
-                 fractional_coordinates=True, **kwargs):
-        """Return evenly spaced coordinates between two arbitrary 3d points"""
+    # todo: move to util
+    def linspace_ng(self, start, *stops, num=50,
+                    fractional_coordinates=True):
+        """
+        Return evenly spaced coordinates between n arbitrary 3d points
 
+        A single stop will return a line between start and stop, two stops make
+        a plane segment, three stops will span a parallelepiped.
+
+        """
         if fractional_coordinates:
             hskp = self.high_symm_kpoints_fractional
         else:
@@ -733,36 +738,20 @@ class FPLORun(object):
         if isinstance(start, str):
             start = hskp[start]
 
-        if isinstance(stop, str):
-            stop = hskp[stop]
+        for i, stop in enumerate(stops):
+            if isinstance(stop, str):
+                stops[i] = hskp[stop]
 
-        ls = np.array([np.linspace(start[0], stop[0], *args, **kwargs),
-                       np.linspace(start[1], stop[1], *args, **kwargs),
-                       np.linspace(start[2], stop[2], *args, **kwargs)]).T
+        vecs = [stop - start for stop in stops]
 
-        return ls
+        try:
+            if len(num) != len(stops):
+                raise Exception("Length of 'num' and 'stops' must match")
+        except TypeError:  # no len
+            num = len(stops) * (num,)
 
-    def linspace_plane(self, start, stop1, stop2, num=(50, 50),
-                       fractional_coordinates=True):
-        if fractional_coordinates:
-            hskp = self.high_symm_kpoints_fractional
-        else:
-            hskp = self.high_symm_kpoints
-
-        if isinstance(start, str):
-            start = hskp[start]
-
-        if isinstance(stop1, str):
-            stop1 = hskp[stop1]
-
-        if isinstance(stop2, str):
-            stop2 = hskp[stop2]
-
-        vec1 = stop1 - start
-        vec2 = stop2 - start
-
-        grid = np.array(np.meshgrid(np.linspace(0, 1, num=num[0]),
-                                    np.linspace(0, 1, num=num[1]))).T
-        A = np.vstack([vec1, vec2])
+        grid = np.array(np.meshgrid(
+            *(np.linspace(0, 1, num=n) for n in num))).T
+        A = np.vstack(vecs)
 
         return np.dot(grid, A) + start
