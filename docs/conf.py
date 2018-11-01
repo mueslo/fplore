@@ -35,6 +35,14 @@ if not os.path.exists(example_data_dir):
     os.mkdir(example_data_dir)
     tar.extractall(example_data_dir)
 
+try:
+    from mayavi import mlab
+    image_scrapers = ('matplotlib', 'mayavi')
+    mlab.options.offscreen = True
+except ImportError:
+    print('Could not load mayavi')
+    image_scrapers = ('matplotlib',)
+
 # -- Project information -----------------------------------------------------
 
 project = 'fplore'
@@ -216,10 +224,11 @@ todo_include_todos = True
 #### GALLERY
 
 sphinx_gallery_conf = {
-        'examples_dirs': '../examples',
-        'gallery_dirs': 'gallery',
-        'filename_pattern': '.*',
-        'doc_module': 'fplore',
+    'image_scrapers': image_scrapers,
+    'examples_dirs': '../examples',
+    'gallery_dirs': 'gallery',
+    'filename_pattern': '.*',
+    'doc_module': 'fplore',
 }
 
 

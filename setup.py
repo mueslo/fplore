@@ -43,7 +43,7 @@ setup(
     python_requires=">=2.7, <4",
     extras_require={
         'tests': ['pytest', 'pytest-logbook'],
-        'docs': ['sphinx', 'sphinx-gallery'],
+        'docs': ['sphinx', 'sphinx-gallery', 'mayavi', 'PyQt5'],
     },
     classifiers=[
         "Operating System :: OS Independent",
