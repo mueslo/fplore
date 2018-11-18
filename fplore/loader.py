@@ -402,14 +402,54 @@ class SymFile(FPLOConfig, FPLOFile):
     __fplo_file__ = "=.sym"
 
 
-def wrap_k(A, b):
+def backfold_k(A, b):
     """
     Wraps an array of k-points b (shape (n_points, 3)) back to the first
     Brillouin zone given a reciprocal lattice matrix A
     """
 
-    n = ((np.linalg.solve(A, b.T) + 0.5) % 1) - 0.5
-    return np.dot(A, n).T
+    # get adjacent BZ cell's Gamma point locations
+    neighbours_k = np.dot(np.array(neighbours), A)
+
+    from scipy.spatial.distance import cdist
+
+    # make a copy of `b' since we will be operating directly on it
+    b = np.copy(b)
+
+    # all coordinates need to be backfolded initially
+    idx_requires_backfolding = np.arange(len(b))
+    i = 0
+    while True:
+        i += 1
+        log.debug('backfolding... (round {})', i)
+
+        # calculate distances to nearest neighbour BZ origins
+        dists = cdist(b[idx_requires_backfolding], neighbours_k)
+
+        # get the index of the BZ origin to which distance is minimal
+        bz_idx = np.argmin(dists, axis=1)
+
+        # perform backfolding
+        backfolded = b[idx_requires_backfolding] - neighbours_k[bz_idx]
+
+        # get indices of points that were backfolded (boolean index array)
+        idx_backfolded = np.any(b[idx_requires_backfolding] != backfolded,
+                                axis=1)
+
+        log.debug('backfolded {} of {} coordinates',
+                  np.sum(idx_backfolded),
+                  len(idx_requires_backfolding))
+
+        if not np.any(idx_backfolded):
+            log.debug("backfolding finished")
+            return b
+
+        # assign backfolded coordinates to output array
+        b[idx_requires_backfolding] = backfolded
+
+        # only those coordinates which were changed in this round need to be
+        # backfolded again
+        idx_requires_backfolding = idx_requires_backfolding[idx_backfolded]
 
 
 def remove_duplicates(data):
@@ -543,12 +583,12 @@ class FPLORun(object):
         except KeyError:
             band = self['+band_kp']
 
-        # coordinates are in terms of conventional unit cell BZ
-        points = np.dot(band.data['k'], self.lattice.reciprocal_lattice.matrix)
+        # convert fractional coordinates to k-space coordinates
+        points = self.frac_to_k(band.data['k'])
 
         # wrap points to primitive unit cell BZ
-        points = wrap_k(self.primitive_lattice.reciprocal_lattice.matrix,
-                        points)
+        points = backfold_k(self.primitive_lattice.reciprocal_lattice.matrix,
+                            points)
 
         data = band.data.copy()
         data['k'] = points
@@ -719,6 +759,18 @@ class FPLORun(object):
             points[label] = np.dot(
                 coord, self.primitive_lattice.reciprocal_lattice.matrix)
         return points
+
+    def frac_to_k(self, fractional_coords):
+        """
+        Transforms fractional lattice coordinates to k-space coordinates.
+
+        :param fractional_coords: Nx3
+        :return: k_points: Nx3
+        """
+
+        # coordinates are in terms of conventional unit cell BZ, not primitive
+        return np.dot(fractional_coords,
+                      self.lattice.reciprocal_lattice.matrix.T)
 
     # todo: move to util
     def linspace_ng(self, start, *stops, num=50,
