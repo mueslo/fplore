@@ -46,10 +46,6 @@ class FPLOFileType(type):
             if isinstance(fplo_file, str):
                 register_loader(fplo_file)
 
-                if (fplo_file.startswith("=.") or
-                        fplo_file in ('+error', '+run')):
-                    cls.load_default = True
-
             elif isinstance(fplo_file, RegexType):
                 cls.registry['loaders_re'][fplo_file] = cls
             else:
@@ -74,13 +70,13 @@ class FPLOFile(with_metaclass(FPLOFileType, object)):
             raise
 
     @classmethod
-    def open(cls, path, load=False):
+    def open(cls, path, load=False, run=None):
         if os.path.isdir(path):
             return FPLORun(path)
 
         FileClass = cls.get_file_class(path)
-        file_obj = FileClass(path)
-        if load:
+        file_obj = FileClass(path, run=run)
+        if load or (load is None and cls.load_default):
             file_obj.load()
 
         return file_obj
@@ -102,13 +98,15 @@ class FPLOFile(with_metaclass(FPLOFileType, object)):
 
         self.is_loaded = True
 
-    def __init__(self, filepath):
+    def __init__(self, filepath, run=None):
         self.load = self.__load
         self.filepath = filepath
+        self.run = run
 
 
 class Error(FPLOFile):
     __fplo_file__ = "+error"
+    load_default = True
 
     def _load(self):
         self.messages = open(self.filepath, 'r').read()
@@ -119,6 +117,7 @@ class Error(FPLOFile):
 
 class Run(FPLOFile):
     __fplo_file__ = "+run"
+    load_default = True
 
     def _load(self):
         self.attrs = {}
@@ -499,7 +498,7 @@ class FPLORun(object):
         for fname in fnames:
             try:
                 self.files[fname] = FPLOFile.open(
-                    os.path.join(directory, fname))
+                    os.path.join(directory, fname), run=self)
             except KeyError as e:
                 pass
             else:
@@ -715,7 +714,7 @@ class FPLORun(object):
             else:
                 points = self.band_data['k']
 
-            ax.plot(points[:, 0], points[:, 1], points[:, 2], '.',
+            ax.plot(*points.T, '.',
                     label='sample k-point', ms=1)
 
         if vectors:

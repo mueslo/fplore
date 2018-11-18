@@ -57,6 +57,8 @@ def walk(ns, declaration, value):
 
 
 class FPLOConfig(object):
+    load_default = True
+
     def _load(self):
         with open(self.filepath, 'r') as config_file:
             config_str = config_file.read()
