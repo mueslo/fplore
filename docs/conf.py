@@ -231,5 +231,9 @@ sphinx_gallery_conf = {
     'doc_module': 'fplore',
 }
 
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if on_rtd:
+    sphinx_gallery_conf['ignore_pattern'] = 'mayavi'
+
 
 
