@@ -377,12 +377,16 @@ class Band(FPLOFile):
         self.k_to_i = k_to_i
 
         self.index_z0 = np.argmin(np.abs(kz_unique))
-        
-        
+
     def bands_at_energy(self, e=0, tol=0.05):
         """Returns the indices of bands which cross a certain energy level"""
         idx_band = np.any(np.abs(self.data['e'] - e) < tol, axis=0)
         return np.where(idx_band)[0]
+
+    def bands_within(self, e_lower=-0.025, e_upper=0.025):
+        e = (e_lower + e_upper) / 2
+        tol = np.abs(e_upper - e_lower) / 2
+        return self.bands_at_energy(e=e, tol=tol)
 
     @staticmethod
     def smooth_overlap(e_k_3d, e=0., scale=0.02, axis=2):
@@ -404,7 +408,12 @@ class SymFile(FPLOConfig, FPLOFile):
 def backfold_k(A, b):
     """
     Wraps an array of k-points b (shape (n_points, 3)) back to the first
-    Brillouin zone given a reciprocal lattice matrix A
+    Brillouin zone given a reciprocal lattice matrix A.
+
+    Note: Assumes that the lattice vectors contained in A correspond to the shortest
+    lattice vectors, i.e. that pairwise combinations of reciprocal lattice
+    vectors in A and their negatives cover all the nearest neighbours of the
+    BZ.
     """
 
     # get adjacent BZ cell's Gamma point locations
@@ -769,7 +778,7 @@ class FPLORun(object):
 
         # coordinates are in terms of conventional unit cell BZ, not primitive
         return np.dot(fractional_coords,
-                      self.lattice.reciprocal_lattice.matrix.T)
+                      self.lattice.reciprocal_lattice.matrix)
 
     # todo: move to util
     def linspace_ng(self, start, *stops, num=50,

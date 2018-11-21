@@ -1,9 +1,4 @@
-#!/usr/bin/env python2
-
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import proj3d
-#from scipy.spatial import Delaunay
 from matplotlib.collections import PolyCollection
 
 from . import log
@@ -23,6 +18,7 @@ def projected_area(xyz, axis):
     x = xyz[..., 1-axis]
     e = xyz[..., 2]
 
+    # 0: orig, 1: +dx, 2: +dy, 3: -dx
     if axis == 1: # project along y
         y1 = e[..., 3]-e[..., 0]
         y2 = e[..., 2]-e[..., 1]
@@ -34,26 +30,19 @@ def projected_area(xyz, axis):
     eq_idx = (np.sign(y1) == np.sign(y2))
 
     with np.errstate(invalid='ignore'):
-        ret =  np.abs(.5*dx*((y1+y2)*eq_idx +
-                             (y1**2+y2**2)/(y1-y2)*(1-eq_idx)) )
-        ret[np.isnan(ret)] = 0. # we get NaN when y1 == y2 == 0
-        # TODO: think of more elegant solution to avoid NaN  
+        p1 = eq_idx * (y1 + y2)  # non-intersecting quadrilateral
+        p2 = (1 - eq_idx) * (y1**2 + y2**2) / (y1 - y2)  # self-intersecting quadrilateral
+
+        p2[np.logical_and(np.isnan(p2), eq_idx)] = 0.  # fix y1 = y2
+
+        ret = np.abs(.5 * dx * (p1 + p2))
 
     return ret
 
 
-def project(x, y, z, axis=1):
-    #TODO project along arbitrary vectors
-    # for that we need to know the total area of a self-intersecting quadrilateral, which is ???
-    """
-    Projects z(x,y) along an axis.
-    Useful for example for showing bulk states in slab calculations.
-    x, y: MxN (meshgrid with 'ij' indexing)
-    z: MxN
-    axis: int (axis along which to project)
-    """
+def make_quadrilaterals(x, y, z):
     #cyclical iteration:
-    #cyc_squ[1, 0] = 
+    #cyc_squ[1, 0] =
     # y -> (2nd axis)
     #o - 0 - 3 - o x (1st axis)
     #|   |   |   | |
@@ -69,73 +58,52 @@ def project(x, y, z, axis=1):
         #  0            +dx         +dy        -dx
         [p[:-1, :-1], p[1:, :-1], p[1:, 1:], p[:-1, 1:]]).transpose(
         (1, 2, 0, 3))
-    # cyc squ: idx 0, 1: M-1 x N-1 coordinates to circular paths
-    #          idx 2:    4 circular path
-    #          idx 3:    3 (xyz) coordinates
+    # cyc squ: idx 0, 1: M-1 x N-1, coordinates to circular paths
+    #          idx 2:    4, quadrilateral points
+    #          idx 3:    3, x/y/z
 
     log.debug("Generating {} polygons", np.prod(cyc_squ.shape[:2]))
 
-    pc = list()  # polygons (quadrilaterals)
-    fcs = list()  # their colors and translucency
-    #                     x                     x
-    xs = cyc_squ[:, :, 2, 0] - cyc_squ[:, :, 0, 0]
-    #                     y                     y
-    ys = cyc_squ[:, :, 2, 1] - cyc_squ[:, :, 0, 1]
+    return cyc_squ.reshape(-1, 4, 3)
+
+
+def project(x, y, z, axis=1, color=(0., 0., 0., 1.)):
+    """
+    Projects z(x,y) along an axis.
+    Useful for example for showing bulk states in slab calculations.
+    x, y: MxN (meshgrid with 'ij' indexing)
+    z: MxN
+    axis: int (axis along which to project)
+    
+    Returns:
+    polycollection
+    """
+    assert x.shape == y.shape == z.shape
+    if np.isnan(z).any():
+        log.warning("NaN values in projection input")
+    r, g, b, a = color
+
+    quads = make_quadrilaterals(x, y, z)
+
+    #                x                x
+    xs = quads[:, 2, 0] - quads[:, 0, 0]
+    #                y                y
+    ys = quads[:, 2, 1] - quads[:, 0, 1]
     areas = xs*ys  # for a rectilinear grid
-                                                #e/z
-    proj_areas = projected_area(cyc_squ, axis=axis)
+                                #e/z
+    proj_areas = projected_area(quads, axis=axis)
 
     with np.errstate(divide='ignore'):
         alphas = 0.1 * areas/proj_areas
         alphas[alphas > 1] = 1.
-    # print areas.shape, cyc_squ.shape
-    # yc_squ = np.stack([cyc_squ, areas], axis=0)
 
-    #                   x     y     z
     idx_visible_axes = [True, True, True]
     idx_visible_axes[axis] = False
 
-    # TODO remove loop, if possible
-    for iix, ix in enumerate(cyc_squ):
-        for iiy, iy in enumerate(ix):
-            # alpha = min(1, np.min(areas)/area)
-            # alpha = np.min(areas)/area
-            alpha = alphas[iix, iiy]
-            # print iy, area, alpha
-            # polygon = Polygon(iy[:, 1:], True, fc='k', lw=0)
-            pc.append(iy[:, idx_visible_axes])
-            fcs.append((0, 0, 0, alpha))
+    pc = quads[..., idx_visible_axes]
+    fcs = np.zeros((len(alphas), 4), dtype=np.float32)
+    fcs[:, :3] = r, g, b
+    fcs[:, 3] = a*alphas
 
     pc = PolyCollection(pc, facecolors=fcs, rasterized=True)
     return pc
-
-
-if __name__ == "__main__":
-    fig = plt.figure(figsize=plt.figaspect(1/3.))
-    x_scale = np.linspace(0, 0.3*np.pi/2, 100)
-    y_scale = np.linspace(0, np.pi/2, 250)
-
-    axis_labels=("k_x", "k_y", "E")
-    x, y = np.meshgrid(x_scale, y_scale, indexing="ij")
-    z = np.sin(x+y)
-
-    proj_axis=1
-    pc = project(x, y, z, axis=proj_axis)
-    ax = fig.add_subplot(1, 3, 1)
-    ax.add_collection(pc)
-
-    plot_x_range = [x_scale,y_scale][1-proj_axis].take((0, -1))
-    ax.set_xlim(plot_x_range)
-    ax.set_ylim([0, 1.1])
-    ax.set_xlabel(axis_labels[1-proj_axis])
-    ax.set_ylabel(axis_labels[2])
-
-    ax2 = fig.add_subplot(1, 3, 2, projection='3d')
-
-    proj3d.persp_transformation = orthogonal_proj
-    ax2.plot_surface(x, y, z, shade=True, alpha=0.9, linewidth=0)
-    ax2.set_xlabel(axis_labels[0])
-    ax2.set_ylabel(axis_labels[1])
-    ax2.set_zlabel(axis_labels[2])
-
-plt.show()
