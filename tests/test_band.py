@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from fplore.loader import Band
+from fplore.files import Band
 
 
 def test_reshape_regular():
@@ -25,11 +25,11 @@ def test_reshape_regular():
     np.random.shuffle(bd)
 
     band = Band('fake_file')
-    band.data = bd
+    band.data = band.symm_data = bd
     band.is_loaded = True
 
     # function to test
-    (xr, yr, zr), bdr = band.reshaped_data
+    (xr, yr, zr), bdr = band.reshape_gridded_data()
 
     # test
     assert tuple(map(len, (xr, yr, zr))) == tuple(map(len, (x, y, z)))

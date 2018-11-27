@@ -5,7 +5,7 @@ Density of states
 
 """
 
-from fplore.loader import FPLORun
+from fplore import FPLORun
 import matplotlib.pyplot as plt
 from matplotlib import rc
 rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})

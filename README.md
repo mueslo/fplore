@@ -41,19 +41,25 @@ You can run the examples in the `examples` subdirectory by running them as a mod
 This will automatically load band data from `+band` or `+band_kp`, whichever is available. It will also process all *k*-points, so they lie within the first Brillouin zone.
 
 ```python
-from fplore.loader import FPLORun
+from fplore import FPLORun
 run = FPLORun("/home/jdoe/fplo_run/")
-band_data = run.band_data
+band_data = run.band.data
 ```
+
+You can also specify the filename directly.
+```python
+band_data = run['+band_kp'].data
+```
+
 
 #### Usage method 2 (direct data access)
 
 Alternatively, you may want to use the raw data as it appears in FPLO's written files without any convenience functionality.
 
 ```python
-from fplore.loader import FPLORun
+from fplore import FPLORun
 run = FPLORun("/home/jdoe/fplo_run/")
-raw_band_data = run['+band'].data
+raw_band_data = run['+band_kp']._data
 ```
 
 For example, you can access arbitrary configuration settings from your `=.in` like so:
@@ -66,9 +72,9 @@ For example, you can access arbitrary configuration settings from your `=.in` li
 However, this will fail if you are using non-standard filenames. In that case you can manually load a file by using the appropriate loader class directly. For example:
 
 ```python
-from fplore.loader import Band
+from fplore.files import Band
 band = Band("/home/jdoe/fplo_run/+band_old")
-raw_band_data = band.data
+raw_band_data = band._data
 ```
 
 #### `FPLORun` properties

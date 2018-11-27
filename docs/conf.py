@@ -35,10 +35,13 @@ if not os.path.exists(example_data_dir):
     os.mkdir(example_data_dir)
     tar.extractall(example_data_dir)
 
+mayavi = False
 try:
     from mayavi import mlab
     image_scrapers = ('matplotlib', 'mayavi')
     mlab.options.offscreen = True
+    mayavi = True
+    print("Found mayavi")
 except ImportError:
     print('Could not load mayavi')
     image_scrapers = ('matplotlib',)
@@ -232,7 +235,8 @@ sphinx_gallery_conf = {
 }
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if on_rtd:
+if on_rtd or not mayavi:
+    print("Not running mayavi examples.")
     sphinx_gallery_conf['ignore_pattern'] = 'mayavi'
 
 

@@ -4,54 +4,65 @@ Band projection
 ===============
 
 """
+# sphinx_gallery_thumbnail_number = 2
 
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
-from fplore.loader import FPLORun
-from fplore.project import project
+from fplore import FPLORun
+from fplore.plot import project, plot_bz
+from fplore.util import sample_e, linspace_ng
 
-run = FPLORun("../example_data/fermisurf")
+run = FPLORun("../example_data/fermi")
 
-X_point = np.array((-0.5, 0, 0))
-M_point = np.array((-0.5, -0.5, 0))
-point_3 = np.array((0, 0, -0.5))
+point_1 = np.array((0.5, 0, 0))
+point_2 = np.array((0.5, 0.5, 0))
+point_3 = np.array((0, 0, 0.5))
 
-level_indices = run["+band_kp"].bands_within(-0.25, 0.25)
-print("Plotting", len(level_indices), " projected bands.")
-ip = run["+band_kp"].interpolator
+level_indices = run.band.bands_within(-0.25, 0.25)
+path = linspace_ng(point_1, point_2, point_3,
+                   num=(50, 50))
+path = run.frac_to_k(path)
 
-path = run.linspace_ng(X_point, M_point, point_3,
-                       num=(250, 50))
-bands_along_path = ip(path)
+axes, reshaped_data = run.band.reshape_gridded_data()
+bands_along_path = sample_e(axes, reshaped_data, path, order=2,
+                            energy_levels=level_indices)
+#bands_along_path = run.band.interpolator(path)
 
-show_bz = False
-n = 2 + show_bz
+###########################################################################
+# Illustration of the part of the Brillouin zone that is being projected.
 
-f = plt.figure(figsize=(n*4, 4))
-ax1 = f.add_subplot(1, n, 1)
-ax2 = f.add_subplot(1, n, 2, sharex=ax1, sharey=ax1)
+f1 = plt.figure()
+ax = f1.add_subplot(111, projection='3d')
 
-if show_bz:
-    ax3 = f.add_subplot(1, n, 3, projection='3d')
+points = path.reshape(-1, 3)
+plot_bz(run, ax, k_points=True, high_symm_points=False, use_symmetry=True)
+ax.plot(*points.T, color='k', alpha=0.3, label="projected k-points")
 
-    points = path.reshape(-1, 3)
-    run.plot_bz(ax3, k_points=True, high_symm_points=False)
-    ax3.plot(*run.frac_to_k(points).T, color='k', alpha=0.3, label="projected k-points")
+ax.set_title('projected part of BZ')
+ax.legend(loc='lower right')
 
-    ax3.set_title('projected part of BZ')
-    ax3.legend(loc='lower right')
+plt.show()
 
-for idx_e in level_indices:
-    bap = bands_along_path[:, :, idx_e]
+###########################################################################
+# Projecting the bands.
+
+f2 = plt.figure(figsize=(6, 4))
+ax1 = f2.add_subplot(1, 2, 1)
+ax2 = f2.add_subplot(1, 2, 2, sharex=ax1, sharey=ax1)
+
+n_energy_levels = bands_along_path.shape[-1]
+for i in range(n_energy_levels):
+    bap = bands_along_path[..., i]
     i = np.linspace(0, 1, bap.shape[0])
     j = np.linspace(0, 1, bap.shape[1])
     ij = np.meshgrid(i, j, indexing='ij')
     ax1.plot(ij[0], bap, color='gray', lw=0.1)
 ax1.set_title('naive line plot')
 
-for idx_e in level_indices:  # range(e_k_3d.shape[3]):
-    bap = bands_along_path[:, :, idx_e]
+for i in range(n_energy_levels):
+    bap = bands_along_path[..., i]
     i = np.linspace(0, 1, bap.shape[0])
     j = np.linspace(0, 1, bap.shape[1])
     i, j = np.meshgrid(i, j, indexing='ij')

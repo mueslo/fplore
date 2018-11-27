@@ -6,11 +6,11 @@ Fermi surface
 """
 
 from mayavi import mlab
-from fplore.loader import FPLORun
+from fplore import FPLORun
 
 run = FPLORun("../example_data/fermisurf")
-axes, data = run['+band_kp'].reshaped_data
-level_indices = run["+band_kp"].bands_at_energy()
+axes, data = run.band.reshape_gridded_data()
+level_indices = run.band.bands_at_energy()
 
 mlab.figure()
 
