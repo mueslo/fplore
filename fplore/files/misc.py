@@ -61,6 +61,12 @@ class Points(FPLOFile):
 class InFile(FPLOConfig, FPLOFile):
     __fplo_file__ = "=.in"
 
+    def _load(self):
+        super(InFile, self)._load()
+
+        self.run.version = (self.header.version.mainversion,
+                            self.header.version.subversion)
+        log.info("FPLO run with version {}-{}", *self.run.version)
 
 class SymFile(FPLOConfig, FPLOFile):
     __fplo_file__ = "=.sym"
