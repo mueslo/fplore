@@ -8,6 +8,7 @@ from six import with_metaclass
 import re
 from collections import Counter, OrderedDict
 from contextlib import contextmanager
+import hashlib
 
 import numpy as np
 
@@ -97,7 +98,6 @@ class FPLOFile(with_metaclass(FPLOFileType, object)):
 
 @contextmanager
 def writeable(var):
-    # Code to acquire resource, e.g.:
     _writeable = var.flags.writeable
     var.flags.writeable = True
     try:
@@ -118,7 +118,6 @@ def cache_decorator(f, classname, attrs):
         raise NotImplementedError
     attr = attrs[0]
 
-    import hashlib
     def _load(self):
         path, filename = os.path.split(self.filepath)
         mtime = str(os.path.getmtime(self.filepath))

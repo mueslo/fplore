@@ -24,7 +24,10 @@ axis_labels = [r'$k_x / \frac{2\pi}{a}$',
                r'$k_y / \frac{2\pi}{a}$',
                r'$k_z / \frac{2\pi}{c}$']
 
-im = run.band.smooth_overlap(data['e'], e=0, scale=0.04, axis=axis_to_project)
+# limit to bands close to fermi level to reduce memory usage
+bands = run.band.bands_at_energy(e=0., tol=5*0.04)
+
+im = run.band.smooth_overlap(data['e'][..., bands], e=0, scale=0.04, axis=axis_to_project)
 im = im.T  # so the first axis (x) is displayed horizontally not vertically
 
 plt.imshow(im, extent=(axes[visible_axes[0]][0], axes[visible_axes[0]][-1],

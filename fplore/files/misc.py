@@ -68,5 +68,6 @@ class InFile(FPLOConfig, FPLOFile):
                             self.header.version.subversion)
         log.info("FPLO run with version {}-{}", *self.run.version)
 
+
 class SymFile(FPLOConfig, FPLOFile):
     __fplo_file__ = "=.sym"
