@@ -20,9 +20,9 @@ axis_to_project = 2
 visible_axes = [0, 1, 2]
 visible_axes.remove(axis_to_project)
 
-axis_labels = [r'$k_x / \frac{2\pi}{a}$',
-               r'$k_y / \frac{2\pi}{a}$',
-               r'$k_z / \frac{2\pi}{c}$']
+axis_labels = [r'$k_x / \mathrm{\AA}^{-1}$',
+               r'$k_y / \mathrm{\AA}^{-1}$',
+               r'$k_z / \mathrm{\AA}^{-1}$']
 
 # limit to bands close to fermi level to reduce memory usage
 bands = run.band.bands_at_energy(e=0., tol=5*0.04)
