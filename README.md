@@ -1,8 +1,8 @@
-![](https://img.shields.io/github/release/mueslo/fplore.svg?style=flat-square)
-![](https://img.shields.io/pypi/v/fplore.svg?style=flat-square)
-![](https://img.shields.io/travis/mueslo/fplore.svg?style=flat-square)
-![](https://img.shields.io/readthedocs/fplore.svg?style=flat-square)
-![](https://img.shields.io/github/license/mueslo/fplore.svg?style=flat-square)
+[![](https://img.shields.io/github/release/mueslo/fplore.svg?style=flat-square)](https://github.com/mueslo/fplore/releases)
+[![](https://img.shields.io/pypi/v/fplore.svg?style=flat-square)](https://pypi.org/project/fplore/)
+[![](https://img.shields.io/travis/mueslo/fplore.svg?style=flat-square)](https://travis-ci.org/mueslo/fplore)
+[![](https://img.shields.io/readthedocs/fplore.svg?style=flat-square)](https://fplore.readthedocs.io)
+[![](https://img.shields.io/github/license/mueslo/fplore.svg?style=flat-square)](https://github.com/mueslo/fplore/blob/master/LICENSE)
 
 
 # fplore
