@@ -239,21 +239,6 @@ class Band(FPLOFile):
 
             missing_coords_e = ip(missing_coords_k)
 
-            def in_hull(p, hull):
-                """
-                Test if points in `p` are in `hull`
-
-                `p` should be a `NxK` coordinates of `N` points in `K` dimensions
-                `hull` is either a scipy.spatial.Delaunay object or the `MxK` array of the
-                coordinates of `M` points in `K`dimensions for which Delaunay triangulation
-                will be computed
-                """
-                from scipy.spatial import Delaunay
-                if not isinstance(hull, Delaunay):
-                    hull = Delaunay(hull)
-
-                return hull.find_simplex(p) >= 0
-
             new_data[len(sorted_data) - len(regular_grid_coords):]['e'] = missing_coords_e
 
             #new_data[len(sorted_data)-len(regular_grid_coords):]['e'] *= np.nan
