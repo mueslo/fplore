@@ -44,7 +44,7 @@ class Points(FPLOFile):
     def _load(self):
         points_file = open(self.filepath, 'r')
 
-        n_points = int(next(points_file).split()[1])
+        self.n_points = int(next(points_file).split()[1])
         lines_per_point = 4
 
         self.data = []

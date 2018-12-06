@@ -115,7 +115,7 @@ class Arrow3D(FancyArrowPatch):
         FancyArrowPatch.draw(self, renderer)
 
 
-# from http://stackoverflow.com/questions/23840756/how-to-disable-perspective-in-mplot3d
+# from http://stackoverflow.com/questions/23840756/
 def orthogonal_proj(zfront, zback):
     a = (zfront + zback) / (zfront - zback)
     b = -2 * (zfront * zback) / (zfront - zback)
@@ -158,7 +158,8 @@ def plot_bz(run, ax, vectors=True, k_points=False, use_symmetry=False,
 
     if high_symm_points:
         points = run.high_symm_kpoints
-        ax.plot(*zip(*points.values()), 'o', label='high symmetry point', color='k', ms='1')
+        ax.plot(*zip(*points.values()), 'o',
+                label='high symmetry point', color='k', ms='1')
 
         for kpath in run.high_symm_kpaths:
             path = [points[lbl] for lbl in kpath]

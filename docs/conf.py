@@ -69,13 +69,13 @@ release = '0.1a'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    #'sphinx.ext.doctest',
-    #'sphinx.ext.intersphinx',
-    #'sphinx.ext.todo',
+    # 'sphinx.ext.doctest',
+    # 'sphinx.ext.intersphinx',
+    # 'sphinx.ext.todo',
     'sphinx.ext.coverage',
-    #'sphinx.ext.imgmath',
+    # 'sphinx.ext.imgmath',
     'sphinx.ext.viewcode',
-    #'sphinx.ext.githubpages',
+    # 'sphinx.ext.githubpages',
     'sphinx_gallery.gen_gallery',
 ]
 
@@ -224,7 +224,7 @@ intersphinx_mapping = {'https://docs.python.org/': None}
 todo_include_todos = True
 
 
-#### GALLERY
+# -- GALLERY
 
 sphinx_gallery_conf = {
     'image_scrapers': image_scrapers,
@@ -238,6 +238,3 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if on_rtd or not mayavi:
     print("Not running mayavi examples.")
     sphinx_gallery_conf['ignore_pattern'] = 'mayavi'
-
-
-

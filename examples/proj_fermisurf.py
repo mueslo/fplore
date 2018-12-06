@@ -41,4 +41,3 @@ plt.ylabel(axis_labels[visible_axes[1]])
 plt.legend()
 plt.tight_layout()
 plt.show()
-

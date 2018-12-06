@@ -12,13 +12,14 @@ from ..logging import log
 
 
 class DOS(FPLOFile):
-    __fplo_file__ = re.compile("\+dos\..+")
+    __fplo_file__ = re.compile(r"\+dos\..+")
 
     def _load(self):
         dos_file = open(self.filepath, 'r')
 
         header = next(dos_file)
         # todo: parse header & filename
+        log.debug(header)
 
         data = []
         for line in dos_file:

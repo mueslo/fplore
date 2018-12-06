@@ -31,7 +31,7 @@ class FPLORun(object):
             try:
                 self.files[fname] = FPLOFile.open(
                     os.path.join(directory, fname), run=self)
-            except KeyError as e:
+            except KeyError:
                 pass
             else:
                 if self.files[fname].load_default:

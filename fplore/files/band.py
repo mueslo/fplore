@@ -3,7 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
 
-import os
+import re
 import itertools
 
 import numpy as np
@@ -17,7 +17,7 @@ from pymatgen.symmetry.groups import PointGroup
 from .base import FPLOFile, writeable, cache
 from ..logging import log
 from ..util import (cartesian_product, detect_grid, snap_to_grid,
-                   backfold_k, linspace_ng, remove_duplicates)
+                    remove_duplicates)
 
 
 # todo unify/subclass Band parser
@@ -234,35 +234,37 @@ class Band(FPLOFile):
             if len(missing_coords) != len(rgc_coords) - len(sd_coords):
                 log.error("FIXME float inaccuracy errors")
 
-            fill_e = np.nan * np.zeros((len(missing_coords), len(energy_levels)))
-
             new_data = self._gen_band_data_array(
                 len(regular_grid_coords), len(energy_levels))
             new_data[:len(sorted_data)] = sorted_data
-            new_data[len(sorted_data)-len(regular_grid_coords):]['k'] = missing_coords.view('3f4')
+
+            mc_start = len(sorted_data) - len(regular_grid_coords)
+            new_data[mc_start:]['k'] = missing_coords.view('3f4')
 
             # try interpolating points by backfolding into 1st bz
             ip = LinearNDInterpolator(sorted_data['k'], sorted_data['e'])
             if fractional_coords:
-                missing_coords_k = self.run.frac_to_k(missing_coords.view('3f4'))  # if frac else just view
+                missing_coords_k = self.run.frac_to_k(
+                    missing_coords.view('3f4'))
             else:
                 missing_coords_k = missing_coords.view('3f4')
 
             missing_coords_k = self.run.backfold_k(missing_coords_k)
 
             if fractional_coords:
-                missing_coords_k = self.run.k_to_frac(missing_coords_k)  # if frac
+                missing_coords_k = self.run.k_to_frac(missing_coords_k)
 
             missing_coords_e = ip(missing_coords_k)
 
-            new_data[len(sorted_data) - len(regular_grid_coords):]['e'] = missing_coords_e
+            nd_start = len(sorted_data) - len(regular_grid_coords)
+            new_data[nd_start:]['e'] = missing_coords_e
 
-            #new_data[len(sorted_data)-len(regular_grid_coords):]['e'] *= np.nan
             nan = np.isnan(new_data['e'])
             log.debug("{:.2f}% NaN", 100*(np.sum(nan)/np.prod(nan.shape)))
 
             new_k = new_data['k']
-            new_sorted_data = new_data[np.lexsort((new_k[:, 2], new_k[:, 1], new_k[:, 0]))]
+            nsd_idx = np.lexsort((new_k[:, 2], new_k[:, 1], new_k[:, 0]))
+            new_sorted_data = new_data[nsd_idx]
             assert np.array_equal(new_sorted_data['k'], regular_grid_coords)
 
             return axes, new_sorted_data.reshape(*shape)

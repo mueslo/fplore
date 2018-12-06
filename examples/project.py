@@ -8,7 +8,6 @@ Band projection
 
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 from fplore import FPLORun
 from fplore.plot import project, plot_bz
@@ -28,7 +27,7 @@ path = run.frac_to_k(path)
 axes, reshaped_data = run.band.reshape_gridded_data()
 bands_along_path = sample_e(axes, reshaped_data, path, order=2,
                             energy_levels=level_indices)
-#bands_along_path = run.band.interpolator(path)
+# bands_along_path = run.band.interpolator(path)
 
 ###########################################################################
 # Illustration of the part of the Brillouin zone that is being projected.

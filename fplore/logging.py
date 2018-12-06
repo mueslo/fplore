@@ -2,8 +2,6 @@
 import sys
 
 import logbook.more
-#from logbook.compat import redirect_logging
-#redirect_logging()
 
 
 class StreamHandler(logbook.more.ColorizingStreamHandlerMixin,

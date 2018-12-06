@@ -40,9 +40,12 @@ def detect_grid(coordinates):
         assert np.allclose(zs, zs_grid, **tol)
     except AssertionError:
         log.debug('detected irregular k-sample grid')
-        log.debug("zip: {}", list(zip(xs, xs_grid, np.isclose(xs, xs_grid, **tol))))
-        log.debug("zip: {}", list(zip(ys, ys_grid, np.isclose(ys, ys_grid, **tol))))
-        log.debug("zip: {}", list(zip(zs, zs_grid, np.isclose(zs, zs_grid, **tol))))
+        log.debug("zip: {}", list(
+            zip(xs, xs_grid, np.isclose(xs, xs_grid, **tol))))
+        log.debug("zip: {}", list(
+            zip(ys, ys_grid, np.isclose(ys, ys_grid, **tol))))
+        log.debug("zip: {}", list(
+            zip(zs, zs_grid, np.isclose(zs, zs_grid, **tol))))
         raise
 
     return xs_grid, ys_grid, zs_grid
@@ -69,12 +72,12 @@ def sample_e(axes, reshaped_data, coords, order=1,
     if np.isnan(reshaped_data['e']).any():
         log.warning("NaN in sample_e input")
 
-
     len_axes = np.array([len(axis) for axis in axes])
     axes = np.array([[axis[0], axis[-1]] for axis in axes])
-    #x0 + ix/(nx - 1) * (x_end - x0) = coord
+    # x0 + ix/(nx - 1) * (x_end - x0) = coord
     # -> (nx - 1) * (coord - x0)/(x_end - x0) = ix
-    idx_coords = (len_axes - 1) * (coords - axes[:, 0])/(axes[:, -1] - axes[:, 0])
+    idx_coords = ((len_axes - 1) *
+                  (coords - axes[:, 0]) / (axes[:, -1] - axes[:, 0]))
 
     assert coords.shape[-1] == 3
     base_shape = coords.shape[:-1]
@@ -105,10 +108,10 @@ def backfold_k(A, b):
     Wraps an array of k-points b (shape (n_points, 3)) back to the first
     Brillouin zone given a reciprocal lattice matrix A.
 
-    Note: Assumes that the lattice vectors contained in A correspond to the shortest
-    lattice vectors, i.e. that pairwise combinations of reciprocal lattice
-    vectors in A and their negatives cover all the nearest neighbours of the
-    BZ.
+    Note: Assumes that the lattice vectors contained in A correspond to the
+    shortest lattice vectors, i.e. that pairwise combinations of reciprocal
+    lattice vectors in A and their negatives cover all the nearest neighbours
+    of the BZ.
     """
 
     # get adjacent BZ cell's Gamma point locations
@@ -186,17 +189,6 @@ def linspace_ng(start, *stops, num=50):
     a plane segment, three stops will span a parallelepiped.
 
     """
-    #if fractional_coordinates:
-    #    hskp = self.high_symm_kpoints_fractional
-    #else:
-    #    hskp = self.high_symm_kpoints
-    #
-    #if isinstance(start, str):
-    #    start = hskp[start]
-    #
-    #for i, stop in enumerate(stops):
-    #    if isinstance(stop, str):
-    #        stops[i] = hskp[stop]
 
     vecs = [stop - start for stop in stops]
 

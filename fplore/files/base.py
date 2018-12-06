@@ -6,7 +6,7 @@ from __future__ import division
 import os
 from six import with_metaclass
 import re
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from contextlib import contextmanager
 import hashlib
 
@@ -63,7 +63,7 @@ class FPLOFile(with_metaclass(FPLOFileType, object)):
     @classmethod
     def open(cls, path, load=False, run=None):
         if os.path.isdir(path):
-            return FPLORun(path)
+            raise Exception("Not a file.")
 
         FileClass = cls.get_file_class(path)
         file_obj = FileClass(path, run=run)
@@ -124,7 +124,7 @@ def cache_decorator(f, classname, attrs):
         fsize = str(os.path.getsize(self.filepath))
 
         vals = (mtime, fsize)
-        #hashpath = hashlib.sha1(os.path.abspath(self.filepath)).hexdigest()
+        # hashpath = hashlib.sha1(os.path.abspath(self.filepath)).hexdigest()
         hashed = hashlib.sha1(" ".join(vals).encode('utf8')).hexdigest()
 
         cachedir = "{}/.cache".format(path)

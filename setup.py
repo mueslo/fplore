@@ -57,9 +57,4 @@ setup(
         "Topic :: Scientific/Engineering :: Physics",
         "Topic :: Scientific/Engineering :: Chemistry",
     ],
-    #entry_points={
-    #    'console_scripts': [
-    #        'scriptname = fplore.__main__:main',
-    #    ]
-    #},
 )

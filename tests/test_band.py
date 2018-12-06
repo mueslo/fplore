@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 from fplore.files import Band
 
@@ -8,11 +7,12 @@ def test_reshape_regular():
     # (among other things so it can be directly used for interpolation input)
 
     # construct Band data (todo: fixture)
-    x, y, z = np.linspace(-0.5, -0.25, 43), np.linspace(-0.25, 0.,
-                                                        47), np.linspace(0, 0.5,
-                                                                         53)
-    e = lambda x, y, z: np.array(
-        [x, y, z, x ** 2 - y ** 2 + z, y ** 2 - x ** 2 + z])
+    x, y, z = (np.linspace(-0.5, -0.25, 43), np.linspace(-0.25, 0., 47),
+               np.linspace(0, 0.5, 53))
+
+    def e(x, y, z):
+        return np.array([x, y, z, x ** 2 - y ** 2 + z, y ** 2 - x ** 2 + z])
+
     X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 
     E = e(X, Y, Z).transpose(1, 2, 3, 0)

@@ -17,7 +17,7 @@ fig = plt.figure()
 
 points = run["+points"].data
 iks, labels = zip(*points)
-labels = [label.replace('$~G', '$\Gamma$') for label in labels]
+labels = [label.replace('$~G', r'$\Gamma$') for label in labels]
 
 band_data = run["+band"].data
 
