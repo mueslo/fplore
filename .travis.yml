@@ -3,10 +3,11 @@ language: python
 cache:
   pip: true
 python:
-- '3.6'
+  - '3.6'
 install:
-- pip install .
-script: exit 0
+  - pip install tox-travis
+script:
+  - tox
 deploy:
   provider: pypi
   user: mueslo

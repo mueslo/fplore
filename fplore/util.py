@@ -181,7 +181,7 @@ def remove_duplicates(data):
     return data
 
 
-def linspace_ng(start, *stops, num=50):
+def linspace_ng(start, *stops, **kwargs):
     """
     Return evenly spaced coordinates between n arbitrary 3d points
 
@@ -189,7 +189,7 @@ def linspace_ng(start, *stops, num=50):
     a plane segment, three stops will span a parallelepiped.
 
     """
-
+    num = kwargs.get("num", 50)
     vecs = [stop - start for stop in stops]
 
     try:

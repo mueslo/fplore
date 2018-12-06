@@ -38,11 +38,11 @@ setup(
         "logbook~=1.4",
         "pyparsing~=2.2",
         "progressbar2~=3.38",
-        "matplotlib~=3.0",
+        "matplotlib~=2.2",
     ],
     python_requires=">=2.7, <4",
     extras_require={
-        'tests': ['pytest', 'pytest-logbook'],
+        'tests': ['tox'],
         'docs': ['sphinx', 'sphinx-gallery'],
     },
     classifiers=[

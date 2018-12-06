@@ -143,11 +143,10 @@ def plot_bz(run, ax, vectors=True, k_points=False, use_symmetry=False,
         else:
             points = run.band.data['k']
 
-        ax.plot(*points.T, '.',
+        ax.plot(*points.T, marker='.', ls='',
                 label='sample k-point', ms=1)
 
     if vectors:
-        from .plot import Arrow3D
         for vec in run.primitive_lattice.reciprocal_lattice.matrix:
             ax.add_artist(Arrow3D(*zip((0, 0, 0), vec), mutation_scale=20,
                                   lw=3, arrowstyle="-|>", color="r"))
@@ -158,15 +157,15 @@ def plot_bz(run, ax, vectors=True, k_points=False, use_symmetry=False,
 
     if high_symm_points:
         points = run.high_symm_kpoints
-        ax.plot(*zip(*points.values()), 'o',
+        ax.plot(*zip(*points.values()), marker='o', ls='',
                 label='high symmetry point', color='k', ms='1')
 
         for kpath in run.high_symm_kpaths:
             path = [points[lbl] for lbl in kpath]
-            ax.plot(*zip(*path), '-', color='k', alpha=0.5)
+            ax.plot(*zip(*path), ls='-', color='k', alpha=0.5)
 
         for label, coord in points.items():
-            ax.text(*coord, '${}$'.format(label), color='k')
+            ax.text(*coord, s='${}$'.format(label), color='k')
 
     ax.set_xlabel('$k_x$')
     ax.set_ylabel('$k_y$')
