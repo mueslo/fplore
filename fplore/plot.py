@@ -2,7 +2,7 @@
 import numpy as np
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
-from matplotlib.collections import PolyCollection
+from matplotlib.collections import PolyCollection, LineCollection
 
 from .logging import log
 
@@ -171,3 +171,17 @@ def plot_bz(run, ax, vectors=True, k_points=False, use_symmetry=False,
     ax.set_ylabel('$k_y$')
     ax.set_zlabel('$k_z$')
     ax.legend()
+
+
+def plot_bz_proj(run, ax, axis=2, **kwargs):
+    visible_axes = [True] * 3
+    visible_axes[axis] = False
+    lines = []
+
+    for facet in run.brillouin_zone:
+        proj_facet = np.stack(facet)[:, visible_axes]
+        lines.append(proj_facet.tolist())
+
+    lines = LineCollection(lines, label='Brillouin zone', **kwargs)
+    ax.add_collection(lines)
+    ax.autoscale_view()
