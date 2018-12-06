@@ -90,6 +90,14 @@ class BandWeights(FPLOFile):
 
 class Band(FPLOFile):
     __fplo_file__ = ("+band", "+band_kp")
+    # todo: custom band data classes that only store reference to band data
+
+    @staticmethod
+    def _gen_band_data_index_array(num_k, idx_type=np.uint32):
+        return np.zeros(num_k, dtype=[
+            ('k', '3f4'),
+            ('idx', idx_type),
+        ])
 
     @staticmethod
     def _gen_band_data_array(num_k, num_e):
@@ -177,7 +185,7 @@ class Band(FPLOFile):
         return data
 
     def reshape_gridded_data(self, apply_symmetries=True,
-                             fractional_coords=False):
+                             fractional_coords=False, energy_levels=None):
         if apply_symmetries:
             data = self.symm_data
         else:
@@ -186,6 +194,10 @@ class Band(FPLOFile):
         if fractional_coords:
             data = np.copy(data)
             data['k'] = self.run.k_to_frac(data['k'])
+
+        n_e = data['e'].shape[1]
+        if energy_levels is None:
+            energy_levels = np.arange(n_e)
 
         # todo: add 2d reshape ability
 
@@ -196,9 +208,17 @@ class Band(FPLOFile):
         shape = len(xs), len(ys), len(zs)
 
         k = data['k']
-        sorted_data = data[np.lexsort((k[:, 2], k[:, 1], k[:, 0]))]
+        sorted_data = self._gen_band_data_array(len(data), len(energy_levels))
+        sort_idx = np.lexsort((k[:, 2], k[:, 1], k[:, 0]))
+        sorted_data['k'] = k[sort_idx]
+        sorted_data['e'] = data['e'][..., energy_levels][sort_idx]
 
-        if not np.array_equal(sorted_data['k'], regular_grid_coords):
+        if np.array_equal(sorted_data['k'], regular_grid_coords):
+            log.debug('detected regular k-sample grid of shape {}', shape)
+
+            return axes, sorted_data.reshape(*shape)
+
+        else:
             log.debug('detected sparse k-sample grid')
 
             # skipping check that sorted_data['k'] is a subset, in that case
@@ -217,11 +237,10 @@ class Band(FPLOFile):
             if len(missing_coords) != len(rgc_coords) - len(sd_coords):
                 log.error("FIXME float inaccuracy errors")
 
-            n_e = data['e'].shape[1]
-            fill_e = np.nan * np.zeros((len(missing_coords), n_e))
+            fill_e = np.nan * np.zeros((len(missing_coords), len(energy_levels)))
 
             new_data = self._gen_band_data_array(
-                len(regular_grid_coords), n_e)
+                len(regular_grid_coords), len(energy_levels))
             new_data[:len(sorted_data)] = sorted_data
             new_data[len(sorted_data)-len(regular_grid_coords):]['k'] = missing_coords.view('3f4')
 
@@ -250,10 +269,6 @@ class Band(FPLOFile):
             assert np.array_equal(new_sorted_data['k'], regular_grid_coords)
 
             return axes, new_sorted_data.reshape(*shape)
-
-        log.debug('detected regular k-sample grid of shape {}', shape)
-
-        return axes, sorted_data.reshape(*shape)
 
     @cached_property
     def interpolator(self):
@@ -292,12 +307,18 @@ class Band(FPLOFile):
         k_points = data['k']
 
         num_k, num_e = data['e'].shape
-        new_data = cls._gen_band_data_array(num_k*len(symm_ops), num_e)
+        k_idx = np.arange(num_k)
+        new_data_idx = cls._gen_band_data_index_array(num_k*len(symm_ops))
         for i, op in enumerate(symm_ops):
             rot = op.rotation_matrix
             new_k_points = np.dot(rot, k_points.T).T
-            new_data['k'][num_k*i:num_k*(i+1)] = new_k_points
-            new_data['e'][num_k*i:num_k*(i+1)] = data['e']
+            new_data_idx['k'][num_k*i:num_k*(i+1)] = new_k_points
+            new_data_idx['idx'][num_k*i:num_k*(i+1)] = k_idx
 
         log.debug('applied {} symm ops to {} k points', len(symm_ops), num_k)
-        return remove_duplicates(new_data)
+        new_data_idx = remove_duplicates(new_data_idx)
+
+        new_data = cls._gen_band_data_array(len(new_data_idx), num_e)
+        new_data['k'] = new_data_idx['k']
+        new_data['e'] = data['e'][new_data_idx['idx']]
+        return new_data
