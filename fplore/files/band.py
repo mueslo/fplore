@@ -31,7 +31,7 @@ class BandBase(object):
                  ('k', ftype, (3,)),
                  ('e', ftype, (num_e,))]
         if weights:
-            dtype.append(('c', 'f4', (num_e, num_e)))
+            dtype.append(('c', ftype, (num_e, num_e)))
 
         return np.zeros(num_k, )
 
@@ -103,10 +103,7 @@ class Band(FPLOFile):
     def _gen_band_data_array(num_k, num_e):
         return np.zeros(num_k, dtype=[
             ('ik', 'f4'),
-            ('k', '3f4'),#[
-                #('x', 'f4'),
-                #('y', 'f4'),
-                #('z', 'f4')]),
+            ('k', '3f4'),
             ('e', 'f4', (num_e,)),
         ])
 

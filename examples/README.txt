@@ -1,4 +1,4 @@
 Gallery
 ==========================
 
-Below you can find gallery of `fplore` examples
+Below you can find gallery of ``fplore`` examples.

@@ -21,7 +21,7 @@ Ideally, you should never install packages from PyPI as system packages, rather 
 
 ## Gallery
 [
-![Brillouin zone](https://fplore.readthedocs.io/en/latest/_images/sphx_glr_bz_plot_thumb.png)
+![Brillouin zone](https://fplore.readthedocs.io/en/latest/_images/sphx_glr_brillouin_zone_thumb.png)
 ![Band plot](https://fplore.readthedocs.io/en/latest/_images/sphx_glr_band_plot_thumb.png)
 ![Band projection](https://fplore.readthedocs.io/en/latest/_images/sphx_glr_project_thumb.png)
 ![Fermi surface projection](https://fplore.readthedocs.io/en/latest/_images/sphx_glr_proj_fermisurf_thumb.png)
