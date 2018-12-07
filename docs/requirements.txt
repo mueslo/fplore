@@ -1,2 +1,3 @@
 sphinx~=1.8
 sphinx-gallery~=0.2
+Pillow

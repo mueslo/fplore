@@ -43,7 +43,7 @@ setup(
     python_requires=">=2.7, <4",
     extras_require={
         'tests': ['tox'],
-        'docs': ['sphinx', 'sphinx-gallery'],
+        'docs': ['sphinx', 'sphinx-gallery', 'Pillow'],
     },
     classifiers=[
         "Operating System :: OS Independent",
