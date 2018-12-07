@@ -38,12 +38,16 @@ setup(
         "logbook~=1.4",
         "pyparsing~=2.2",
         "progressbar2~=3.38",
-        "matplotlib~=2.2",
+        "matplotlib>=2.2",
     ],
     python_requires=">=2.7, <4",
     extras_require={
         'tests': ['tox'],
-        'docs': ['sphinx', 'sphinx-gallery', 'Pillow'],
+        'docs': [
+            'sphinx~=1.8',
+            'sphinx-gallery~=0.2',
+            'Pillow',
+        ],
     },
     classifiers=[
         "Operating System :: OS Independent",
