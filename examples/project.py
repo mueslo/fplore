@@ -24,9 +24,11 @@ path = linspace_ng(point_1, point_2, point_3,
                    num=(50, 50))
 path = run.frac_to_k(path)
 
-axes, reshaped_data = run.band.reshape_gridded_data()
-bands_along_path = sample_e(axes, reshaped_data, path, order=2,
-                            energy_levels=level_indices)
+axes, idx_grid = run.band.reshape_gridded_data()
+bands_to_sample = run.band.data['e'][..., level_indices]
+
+grid_data = bands_to_sample[idx_grid]
+bands_along_path = sample_e(axes, grid_data, path, order=2)
 # bands_along_path = run.band.interpolator(path)
 
 ###########################################################################
@@ -67,6 +69,6 @@ for i in range(n_energy_levels):
     i, j = np.meshgrid(i, j, indexing='ij')
     pc = project(i, j, bap, axis=1, color=(0.5, 0.5, 0.5, 1.0))
     ax2.add_collection(pc)
-ax2.set_title('using fplore.project')
+ax2.set_title('using fplore.plot.project')
 
 plt.show()

@@ -1,5 +1,6 @@
 import numpy as np
 from fplore.files import Band
+from fplore.util import cartesian_product
 
 
 def test_reshape_regular():
@@ -10,18 +11,12 @@ def test_reshape_regular():
     x, y, z = (np.linspace(-0.5, -0.25, 43), np.linspace(-0.25, 0., 47),
                np.linspace(0, 0.5, 53))
 
-    def e(x, y, z):
-        return np.array([x, y, z, x ** 2 - y ** 2 + z, y ** 2 - x ** 2 + z])
+    coords = cartesian_product(x, y, z)
 
-    X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+    bd = Band._gen_band_data_array(len(coords), k_coords=True, index=True)
 
-    E = e(X, Y, Z).transpose(1, 2, 3, 0)
-    E_list = E.reshape(-1, 5)
-
-    bd = Band._gen_band_data_array(*E_list.shape)
-
-    bd['k'] = E_list[:, :3]
-    bd['e'] = E_list
+    bd['k'] = coords
+    bd['idx'] = np.arange(len(coords))
     np.random.shuffle(bd)
 
     band = Band('fake_file')
@@ -36,6 +31,3 @@ def test_reshape_regular():
     assert np.allclose(xr, x)
     assert np.allclose(yr, y)
     assert np.allclose(zr, z)
-
-    assert bdr['e'].shape == E.shape
-    assert np.allclose(bdr['e'], E)

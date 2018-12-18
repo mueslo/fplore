@@ -11,6 +11,7 @@ from contextlib import contextmanager
 import hashlib
 
 import numpy as np
+from cached_property import cached_property
 
 from ..logging import log
 
@@ -38,10 +39,14 @@ class FPLOFileType(type):
                 for f in fplo_file:
                     register_loader(f)
 
-        loader = getattr(cls, '_load', None)
-        if loader and hasattr(loader, '_cache_attrs'):
-            setattr(cls, '_load',
-                    cache_decorator(loader, cls.__name__, loader._cache_attrs))
+        for name, obj in attrs.items():
+            if hasattr(obj, '_loader_property'):
+                if hasattr(obj, '_disk_cache_attr'):
+                    obj = cache_decorator(cls.__name__, name)(obj)
+                obj = cached_property(obj)
+                cls._loader_property = name
+
+            setattr(cls, name, obj)
 
 
 class FPLOFile(with_metaclass(FPLOFileType, object)):
@@ -81,13 +86,12 @@ class FPLOFile(with_metaclass(FPLOFileType, object)):
             log.notice('Reloading {}', self.filepath)
 
         try:
-            self._load()
-        except KeyError:
-            raise FPLOFileException(
-                "FPLO file class {} has no '_load' function".format(
-                    self.__name__))
-
-        self.is_loaded = True
+            getattr(self, self._loader_property)
+            self.is_loaded = True
+        except AttributeError:
+            raise FPLOFileException("FPLO file class <{}> has "
+                                    "no designated loading function".format(
+                                        type(self).__name__))
 
     def __init__(self, filepath, run=None):
         self.load = self.__load
@@ -106,42 +110,46 @@ def writeable(var):
         var.flags.writeable = _writeable
 
 
-def cache(*attrs):
+def loader_property(disk_cache=False):
     def decorator(f):
-        f._cache_attrs = tuple(attr for attr in attrs)
+        f._loader_property = True
+        if disk_cache:
+            f._disk_cache_attr = True
         return f
     return decorator
 
 
-def cache_decorator(f, classname, attrs):
-    if len(attrs) != 1:
-        raise NotImplementedError
-    attr = attrs[0]
+def cache_decorator(classname, attrname):
+    def decorator(f):
+        def _load(self):
+            # todo numpy memmap for large datasets
+            # todo embed version string in hash
+            path, filename = os.path.split(self.filepath)
+            mtime = str(os.path.getmtime(self.filepath))
+            fsize = str(os.path.getsize(self.filepath))
 
-    def _load(self):
-        path, filename = os.path.split(self.filepath)
-        mtime = str(os.path.getmtime(self.filepath))
-        fsize = str(os.path.getsize(self.filepath))
+            vals = (mtime, fsize)
+            hashed = hashlib.sha1(" ".join(vals).encode('utf8')).hexdigest()
 
-        vals = (mtime, fsize)
-        # hashpath = hashlib.sha1(os.path.abspath(self.filepath)).hexdigest()
-        hashed = hashlib.sha1(" ".join(vals).encode('utf8')).hexdigest()
+            cachedir = "{}/.cache".format(path)
+            cachefile = "{}.{}-{}.npy".format(classname, attrname, hashed)
+            cachepath = os.path.join(cachedir, cachefile)
 
-        cachedir = "{}/.cache".format(path)
-        cachefile = "{}.{}-{}.npy".format(classname, attr, hashed)
-        cachepath = os.path.join(cachedir, cachefile)
+            # load from cache
+            if os.path.isfile(cachepath):
+                rv = np.load(cachepath)
+                rv.flags.writeable = False
+                log.info('Loaded {} from cache ({}).', filename, cachefile)
+            else:
+                if not os.path.isdir(cachedir):
+                    os.mkdir(cachedir)
+                rv = f(self)
+                rv.flags.writeable = False
+                np.save(cachepath, rv)
+                log.debug('Created cache {}.', cachefile)
 
-        # load from cache
-        if os.path.isfile(cachepath):
-            setattr(self, attr, np.load(cachepath))
-            getattr(self, attr).flags.writeable = False
-            log.info('Loaded {} from cache ({}).', filename, cachefile)
-        else:
-            f(self)
-            getattr(self, attr).flags.writeable = False
-            if not os.path.isdir(cachedir):
-                os.mkdir(cachedir)
-            np.save(cachepath, getattr(self, attr))
-            log.debug('Created cache {}.', cachefile)
+            return rv
 
-    return _load
+        _load.__name__ = f.__name__  # so cached_property can do its thang
+        return _load
+    return decorator

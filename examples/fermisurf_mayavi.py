@@ -10,11 +10,14 @@ from fplore import FPLORun
 
 run = FPLORun("../example_data/fermisurf")
 level_indices = run.band.bands_at_energy()
-axes, data = run.band.reshape_gridded_data(energy_levels=level_indices)
+energy_data = run.band.data['e'][..., level_indices]
+
+axes, grid_idx = run.band.reshape_gridded_data()
+data = energy_data[grid_idx]  # reshape to grid
 
 mlab.figure()
 
 for i, level_idx in enumerate(level_indices):
-    mlab.contour3d(data['e'][..., i], contours=[0], opacity=0.4)
+    mlab.contour3d(data[..., i], contours=[0], opacity=0.4)
 
 mlab.show()

@@ -57,7 +57,7 @@ class FPLORun(object):
 
     @property
     def spacegroup_number(self):
-        return self["=.in"].structure_information.spacegroup.number
+        return self["=.in"].data.structure_information.spacegroup.number
 
     @property
     def spacegroup(self):
@@ -66,7 +66,7 @@ class FPLORun(object):
 
     @property
     def lattice(self):
-        si = self["=.in"].structure_information
+        si = self["=.in"].data.structure_information
 
         # todo: convert non-angstrom units
         assert si.lengthunit.type == 2
@@ -79,7 +79,7 @@ class FPLORun(object):
 
     @property
     def structure(self):
-        si = self["=.in"].structure_information
+        si = self["=.in"].data.structure_information
 
         elements = []
         coords = []

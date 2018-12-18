@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from six import with_metaclass
 from pyparsing import (Word, Literal, Regex, Keyword, CaselessKeyword, Forward,
                        Group, OneOrMore, ZeroOrMore, alphas, nums, Suppress,
                        delimitedList, CharsNotIn, Empty, Optional, Or,
@@ -6,6 +7,7 @@ from pyparsing import (Word, Literal, Regex, Keyword, CaselessKeyword, Forward,
 from fractions import Fraction
 from orderedattrdict import AttrDict
 
+from .base import FPLOFileType, loader_property
 
 IDENTIFIER = Word(alphas + "_", alphas + nums + "_")
 INT_DECIMAL = Regex(r'([+-]?(([1-9][0-9]*)|0+))')
@@ -71,25 +73,26 @@ def walk(ns, declaration, value):
         yield ns, declaration.name, value
 
 
-class FPLOConfig(object):
+class FPLOConfig(with_metaclass(FPLOFileType, object)):
     load_default = True
 
-    def _load(self):
+    @loader_property()
+    def data(self):
         with open(self.filepath, 'r') as config_file:
             config_str = config_file.read()
-        self.parse_config(config_str)
+        return self.parse_config(config_str)
 
-    def parse_config(self, config_str):
+    @staticmethod
+    def parse_config(config_str):
         tokens = CONFIG.parseString(config_str, parseAll=True)
 
-        self._namespace = AttrDict()
+        namespace = AttrDict()
         for config in tokens:
             for section in config:
-                section_ns = self._namespace[section.name] = AttrDict()
+                section_ns = namespace[section.name] = AttrDict()
                 for declaration in section.declarations:
                     for nsnode, name, value in walk(
                             section_ns, declaration, declaration.value):
                         nsnode[name] = value
 
-    def __getattr__(self, name):
-        return self._namespace[name]
+        return namespace

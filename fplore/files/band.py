@@ -7,17 +7,17 @@ import re
 import itertools
 
 import numpy as np
+from numpy.lib.recfunctions import merge_arrays
 import progressbar
 from scipy.stats.distributions import norm
-from scipy.interpolate import (RegularGridInterpolator,
-                               LinearNDInterpolator)
+from scipy.interpolate import RegularGridInterpolator, LinearNDInterpolator
 from cached_property import cached_property
 from pymatgen.symmetry.groups import PointGroup
 
-from .base import FPLOFile, writeable, cache
+from .base import FPLOFile, writeable, loader_property
 from ..logging import log
 from ..util import (cartesian_product, detect_grid, snap_to_grid,
-                    remove_duplicates)
+                    remove_duplicates, in_hull)
 
 
 # todo unify/subclass Band parser
@@ -26,17 +26,36 @@ from ..util import (cartesian_product, detect_grid, snap_to_grid,
 
 class BandBase(object):
     @staticmethod
-    def _gen_band_data_array(num_k, num_e, weights=False, ftype='float32'):
-        dtype = [('ik', ftype),
-                 ('k', ftype, (3,)),
-                 ('e', ftype, (num_e,))]
+    def _gen_band_data_array(num_k, num_e=None,
+                             ik=False, fractional_coords=False, k_coords=False,
+                             weights=False, index=False,
+                             **kwargs):
+        ftype = kwargs.get('ftype', np.float32)
+        dtype = []
+
+        if ik:
+            dtype.append(('ik', ftype))
+
+        if fractional_coords:
+            dtype.append(('frac', ftype, (3,)))
+
+        if k_coords:
+            dtype.append(('k', ftype, (3,)))
+
+        if num_e is not None:
+            dtype.append(('e', ftype, (num_e,)))
+
+        if index:
+            index_type = kwargs.get('idx_type', np.uint32)
+            dtype.append(('idx', index_type))
+
         if weights:
             dtype.append(('c', ftype, (num_e, num_e)))
 
-        return np.zeros(num_k, )
+        return np.zeros(num_k, dtype=dtype)
 
 
-class BandWeights(FPLOFile):
+class BandWeights(BandBase, FPLOFile):
     __fplo_file__ = ("+bweights", "+bweights_kp")
 
     def _load(self):
@@ -49,7 +68,7 @@ class BandWeights(FPLOFile):
         # _0: ?
         # _1: energy-related?
         # _2: number of k_points sampled
-        # _3: num weights? should be equal n_bands or 0
+        # _3: num weights? should be equal n_bands or 0 (?)
         # _4: number of bands (1), ?
         # _5: number of spin states
         # _6: ?
@@ -63,11 +82,8 @@ class BandWeights(FPLOFile):
 
         bar = progressbar.ProgressBar(max_value=n_k*n_bands)
 
-        self.data = np.zeros(n_k, dtype=[
-            ('ik', 'f4'),
-            ('e', '{}f4'.format(n_bands)),
-            ('c', '({0},{0})f4'.format(n_bands)),
-        ])
+        self.data = self._gen_band_data_array(n_k, n_bands,
+                                              ik=True, weights=True)
 
         for i, lines in bar(enumerate(
                 itertools.zip_longest(*[weights_file] * n_bands))):
@@ -88,27 +104,11 @@ class BandWeights(FPLOFile):
                  self.data.nbytes / (1024 * 1024))
 
 
-class Band(FPLOFile):
+class Band(BandBase, FPLOFile):
     __fplo_file__ = ("+band", "+band_kp")
-    # todo: custom band data classes that only store reference to band data
 
-    @staticmethod
-    def _gen_band_data_index_array(num_k, idx_type=np.uint32):
-        return np.zeros(num_k, dtype=[
-            ('k', '3f4'),
-            ('idx', idx_type),
-        ])
-
-    @staticmethod
-    def _gen_band_data_array(num_k, num_e):
-        return np.zeros(num_k, dtype=[
-            ('ik', 'f4'),
-            ('k', '3f4'),
-            ('e', 'f4', (num_e,)),
-        ])
-
-    @cache("_data")
-    def _load(self):
+    @loader_property(disk_cache=True)
+    def _data(self):
         band_kp_file = open(self.filepath, 'r')
         header_str = next(band_kp_file)
 
@@ -120,14 +120,15 @@ class Band(FPLOFile):
         bar = progressbar.ProgressBar(max_value=n_k)
 
         # k and e appear to be 4-byte (32 bit) floats
-        self._data = self._gen_band_data_array(n_k, n_bands)
+        data = self._gen_band_data_array(
+            n_k, n_bands, ik=True, fractional_coords=True)
 
         for i, lines in bar(enumerate(
                 itertools.zip_longest(*[band_kp_file] * (1 + n_spinstates)))):
             # read two lines at once for n_spinstates=1, three for n_s=2
 
             # first line
-            k = tuple(map(float, lines[0].split()[1:]))
+            frac = tuple(map(float, lines[0].split()[1:]))
 
             # second (+ third) line
             ik = float(lines[1].split()[0])
@@ -136,67 +137,59 @@ class Band(FPLOFile):
             # todo: don't ignore magnetic split
             e = e[0]  # ignore magnetic split
 
-            self._data[i]['ik'] = ik
-            self._data[i]['k'] = k
-            self._data[i]['e'] = e
+            data[i]['ik'] = ik
+            data[i]['frac'] = frac
+            data[i]['e'] = e
 
-        log.info('Band data is {} MiB in size',
-                 self._data.nbytes / (1024 * 1024))
+        log.info('Band data is {} MiB in size', data.nbytes / (1024 * 1024))
 
-    def reshape(self, dimensions=None):
-        shape = dimensions or self.shape()
-        if shape == 1:
-            return self._data
-
-        if not self.is_rectangular_grid():
-            raise Exception("can't handle uneven arrays yet")
-
-        if shape == 2:
-            return self.as_2d()
-        if shape == 3:
-            return self.as_3d()
+        return data
 
     @cached_property
     def data(self):
         """Returns the band data folded back to the first BZ"""
+
         # convert fractional coordinates to k-space coordinates
-        points = self.run.frac_to_k(self._data['k'])
+        k = self.run.frac_to_k(self._data['frac'])
 
         # wrap points to primitive unit cell BZ
-        points = self.run.backfold_k(points)
+        k = self.run.backfold_k(k)
 
-        data = self._data.copy()
-        data['k'] = points
+        view_type = np.dtype([('k', k.dtype, (3,))])
+        k_structured = k.view(view_type)[:, 0]
 
-        return data
+        self._data = merge_arrays([self._data, k_structured], flatten=True)
+
+        return self._data
 
     @cached_property
     def symm_data(self):
         """Returns the band data folded back to the first BZ and applies
-        symmetry operations"""
+        symmetry operations. Returns an index array to reduce memory usage."""
         pg = PointGroup(self.run.spacegroup.point_group)
 
         # apply symmetry operations from point group
-        data = np.array(self.apply_symmetry(self.data, pg.symmetry_ops))
-
-        return data
+        return self.apply_symmetry(self.data, pg.symmetry_ops)
 
     def reshape_gridded_data(self, apply_symmetries=True,
-                             fractional_coords=False, energy_levels=None):
+                             fractional_coords=False):
+        """Tries to detect if the band data coordinates form a regular,
+        rectangular grid, and returns the band data `indexes` reshaped to that
+        grid."""
+
+        # todo fractional coords
+        # todo 2d reshape
+
         if apply_symmetries:
             data = self.symm_data
         else:
-            data = self.data
+            data = self._gen_band_data_array(len(self.data),
+                                             k_coords=True, index=True)
+            data['k'] = self.data['k']
+            data['idx'] = np.arange(len(self.data))
 
         if fractional_coords:
-            data = np.copy(data)
-            data['k'] = self.run.k_to_frac(data['k'])
-
-        n_e = data['e'].shape[1]
-        if energy_levels is None:
-            energy_levels = np.arange(n_e)
-
-        # todo: add 2d reshape ability
+            raise NotImplementedError
 
         xs, ys, zs = axes = detect_grid(data['k'])
         with writeable(data):
@@ -205,19 +198,17 @@ class Band(FPLOFile):
         shape = len(xs), len(ys), len(zs)
 
         k = data['k']
-        sorted_data = self._gen_band_data_array(len(data), len(energy_levels))
         sort_idx = np.lexsort((k[:, 2], k[:, 1], k[:, 0]))
-        sorted_data['k'] = k[sort_idx]
-        sorted_data['e'] = data['e'][..., energy_levels][sort_idx]
+
+        sorted_data = data[sort_idx]
 
         if np.array_equal(sorted_data['k'], regular_grid_coords):
             log.debug('detected regular k-sample grid of shape {}', shape)
 
-            return axes, sorted_data.reshape(*shape)
+            return axes, sorted_data.reshape(*shape)['idx']
 
         else:
             log.debug('detected sparse k-sample grid')
-
             # skipping check that sorted_data['k'] is a subset, in that case
             # (irregular k-points), detect_grid should throw an AssertionError
 
@@ -235,39 +226,44 @@ class Band(FPLOFile):
                 log.error("FIXME float inaccuracy errors")
 
             new_data = self._gen_band_data_array(
-                len(regular_grid_coords), len(energy_levels))
-            new_data[:len(sorted_data)] = sorted_data
+                len(regular_grid_coords), k_coords=True, index=True)
 
+            # add existing data
+            new_data[:len(sorted_data)]['k'] = sorted_data['k']
+            new_data[:len(sorted_data)]['idx'] = sorted_data['idx']
+
+            # add missing coordinates
             mc_start = len(sorted_data) - len(regular_grid_coords)
             new_data[mc_start:]['k'] = missing_coords.view('3f4')
 
-            # try interpolating points by backfolding into 1st bz
-            ip = LinearNDInterpolator(sorted_data['k'], sorted_data['e'])
-            if fractional_coords:
-                missing_coords_k = self.run.frac_to_k(
-                    missing_coords.view('3f4'))
-            else:
-                missing_coords_k = missing_coords.view('3f4')
+            # backfold missing coordinates
+            missing_coords = self.run.backfold_k(missing_coords.view('3f4'))
 
-            missing_coords_k = self.run.backfold_k(missing_coords_k)
+            # assert that backfolded missing coordinates are within the
+            # convex hull of data present
+            # todo: if not, return masked array
+            missing_in_hull = in_hull(missing_coords, sorted_data['k'],
+                                      tol=1e-5)
+            assert missing_in_hull.all()
 
-            if fractional_coords:
-                missing_coords_k = self.run.k_to_frac(missing_coords_k)
+            # find exact matches
+            all_k = new_data['k'].copy()
+            all_k[mc_start:] = missing_coords
+            k_u, idx_u, inv_u = np.unique(
+                all_k.round(decimals=4), axis=0,
+                return_index=True, return_inverse=True)
 
-            missing_coords_e = ip(missing_coords_k)
-
-            nd_start = len(sorted_data) - len(regular_grid_coords)
-            new_data[nd_start:]['e'] = missing_coords_e
-
-            nan = np.isnan(new_data['e'])
-            log.debug("{:.2f}% NaN", 100*(np.sum(nan)/np.prod(nan.shape)))
+            # assert that all missing coordinates have an exact match in data
+            # todo (?): if not, interpolate coordinates
+            assert np.array_equal(idx_u, np.arange(len(sorted_data)))
+            new_data['idx'] = new_data['idx'][inv_u]
 
             new_k = new_data['k']
             nsd_idx = np.lexsort((new_k[:, 2], new_k[:, 1], new_k[:, 0]))
             new_sorted_data = new_data[nsd_idx]
             assert np.array_equal(new_sorted_data['k'], regular_grid_coords)
 
-            return axes, new_sorted_data.reshape(*shape)
+            return axes, new_sorted_data.reshape(*shape)['idx']
 
     @cached_property
     def interpolator(self):
@@ -281,7 +277,7 @@ class Band(FPLOFile):
     @cached_property
     def symm_interpolator(self):
         return LinearNDInterpolator(
-            self.symm_data['k'], self.symm_data['e'])
+            self.symm_data['k'], self.band['e'][self.symm_data['idx']])
 
     def bands_at_energy(self, e=0., tol=0.05):
         """Returns the indices of bands which cross a certain energy level"""
@@ -303,11 +299,21 @@ class Band(FPLOFile):
 
     @classmethod
     def apply_symmetry(cls, data, symm_ops):
+        """
+        Applies the given symmetry operations to the k-space coordinates in
+        `data` and returns a structured array with fields `k` and `idx`.
+
+        `k` is the coordinate of the band data in k-space.
+        `ìdx` is an index of `data`, where the band data equivalent to `k` can
+        be found.
+        """
+
         k_points = data['k']
 
         num_k, num_e = data['e'].shape
         k_idx = np.arange(num_k)
-        new_data_idx = cls._gen_band_data_index_array(num_k*len(symm_ops))
+        new_data_idx = cls._gen_band_data_array(num_k*len(symm_ops),
+                                                k_coords=True, index=True)
         for i, op in enumerate(symm_ops):
             rot = op.rotation_matrix
             new_k_points = np.dot(rot, k_points.T).T
@@ -317,7 +323,4 @@ class Band(FPLOFile):
         log.debug('applied {} symm ops to {} k points', len(symm_ops), num_k)
         new_data_idx = remove_duplicates(new_data_idx)
 
-        new_data = cls._gen_band_data_array(len(new_data_idx), num_e)
-        new_data['k'] = new_data_idx['k']
-        new_data['e'] = data['e'][new_data_idx['idx']]
-        return new_data
+        return new_data_idx

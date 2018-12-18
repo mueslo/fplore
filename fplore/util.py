@@ -3,6 +3,7 @@ import itertools
 import numpy as np
 from scipy.ndimage import map_coordinates
 from scipy.spatial.distance import cdist
+from scipy.spatial import Delaunay
 
 from .logging import log
 
@@ -16,11 +17,12 @@ def cartesian_product(*xs):
 
 
 def detect_grid(coordinates):
-    # check if sample points form regular grid
-    # normalise ordering
-    # reshape
-    # make interpolator
+    """
+    Check if sample points form regular, rectangular grid
 
+    :param coordinates:
+    :return: (xs, ys, zs) axes of grid
+    """
     coord_round = coordinates.round(decimals=5)
     xs = sorted(np.unique(coord_round[:, 0]))
     ys = sorted(np.unique(coord_round[:, 1]))
@@ -30,9 +32,13 @@ def detect_grid(coordinates):
     #             grid parallel to axes
     # test:
     dtype = coordinates.dtype
-    xs_grid = np.linspace(xs[0], xs[-1], len(xs), dtype=dtype)
-    ys_grid = np.linspace(ys[0], ys[-1], len(ys), dtype=dtype)
-    zs_grid = np.linspace(zs[0], zs[-1], len(zs), dtype=dtype)
+
+    g_min = np.min(coordinates, axis=0)
+    g_max = np.max(coordinates, axis=0)
+    xs_grid = np.linspace(g_min[0], g_max[0], len(xs), dtype=dtype)
+    ys_grid = np.linspace(g_min[1], g_max[1], len(ys), dtype=dtype)
+    zs_grid = np.linspace(g_min[2], g_max[2], len(zs), dtype=dtype)
+
     try:
         tol = {'rtol': 0, 'atol': 1e-5}
         assert np.allclose(xs, xs_grid, **tol)
@@ -67,9 +73,9 @@ def sample_e(axes, reshaped_data, coords, order=1,
 
     if energy_levels is None:
         energy_levels = np.arange(
-            reshaped_data['e'].shape[-1])
+            reshaped_data.shape[-1])
 
-    if np.isnan(reshaped_data['e']).any():
+    if np.isnan(reshaped_data).any():
         log.warning("NaN in sample_e input")
 
     len_axes = np.array([len(axis) for axis in axes])
@@ -91,7 +97,7 @@ def sample_e(axes, reshaped_data, coords, order=1,
         res = np.zeros((len(coords), len(i_es)))
         for i, i_e in enumerate(i_es):
             res[:, i] = map_coordinates(
-                reshaped_data['e'][..., i_e], idx_coords.T, order=order)
+                reshaped_data[..., i_e], idx_coords.T, order=order)
         return res
 
     ret = mc(energy_levels)
@@ -155,11 +161,11 @@ def backfold_k(A, b):
         elif (np.sum(idx_backfolded)/len(idx_backfolded) < .01 or
               np.sum(idx_backfolded) < 5):
             log.debug("backfolded:")
-            for i in np.argwhere(idx_backfolded):
+            for iw in np.argwhere(idx_backfolded):
                 log.debug(
                     "  {} -> {}",
-                    b[idx_requires_backfolding][i],
-                    backfolded[i])
+                    b[idx_requires_backfolding][iw],
+                    backfolded[iw])
 
         # assign backfolded coordinates to output array
         b[idx_requires_backfolding] = backfolded
@@ -203,3 +209,22 @@ def linspace_ng(start, *stops, **kwargs):
     A = np.vstack(vecs)
 
     return np.dot(grid, A) + start
+
+
+def in_hull(p, hull, **kwargs):
+    """
+    Test if points in `p` are within `hull`
+    """
+    if not isinstance(hull, Delaunay):
+        hull = Delaunay(hull)
+
+    return hull.find_simplex(p, **kwargs) >= 0
+
+
+def generate_irreducible_wedge(lattice):
+    """
+    Partitions BZ into irreducible wedges.
+    :return: List of irreducible wedges with matrix to transform coordinates
+    to the 'primary' wedge.
+    """
+    raise NotImplementedError

@@ -15,8 +15,10 @@ rc('text', usetex=True)
 run = FPLORun("../example_data/fermisurf")
 # limit to bands close to fermi level to reduce memory usage
 bands = run.band.bands_at_energy(e=0., tol=5*0.04)
+selected_energy_data = run.band.data['e'][..., bands]
 
-axes, data = run.band.reshape_gridded_data(energy_levels=bands)
+axes, idx = run.band.reshape_gridded_data()
+data = selected_energy_data[idx]
 
 # axis to project along, 0: x, 1: y, 2: z
 axis_to_project = 2
@@ -28,7 +30,7 @@ axis_labels = [r'$k_x / \mathrm{\AA}^{-1}$',
                r'$k_y / \mathrm{\AA}^{-1}$',
                r'$k_z / \mathrm{\AA}^{-1}$']
 
-im = run.band.smooth_overlap(data['e'], e=0, scale=0.04, axis=axis_to_project)
+im = run.band.smooth_overlap(data, e=0, scale=0.04, axis=axis_to_project)
 im = im.T  # so the first axis (x) is displayed horizontally not vertically
 
 plt.imshow(im, extent=(axes[visible_axes[0]][0], axes[visible_axes[0]][-1],
