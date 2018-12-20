@@ -110,17 +110,22 @@ def writeable(var):
         var.flags.writeable = _writeable
 
 
-def loader_property(disk_cache=False):
+def loader_property(disk_cache=False, mem_map=False):
     def decorator(f):
         f._loader_property = True
         if disk_cache:
             f._disk_cache_attr = True
+        if mem_map:
+            f._disk_cache_attr = True
+            f._mem_map = True
         return f
     return decorator
 
 
 def cache_decorator(classname, attrname):
     def decorator(f):
+        mem_map = getattr(f, '_mem_map', False)
+
         def _load(self):
             # todo numpy memmap for large datasets
             # todo embed version string in hash
@@ -137,16 +142,26 @@ def cache_decorator(classname, attrname):
 
             # load from cache
             if os.path.isfile(cachepath):
-                rv = np.load(cachepath)
-                rv.flags.writeable = False
-                log.info('Loaded {} from cache ({}).', filename, cachefile)
+                if mem_map:
+                    rv = np.load(cachepath, mmap_mode='r')
+                    log.info('Mem-mapped {} from cache ({}).',
+                             filename, cachefile)
+                else:
+                    rv = np.load(cachepath)
+                    rv.flags.writeable = False
+                    log.info('Loaded {} from cache ({}).',
+                             filename, cachefile)
             else:
                 if not os.path.isdir(cachedir):
                     os.mkdir(cachedir)
                 rv = f(self)
-                rv.flags.writeable = False
                 np.save(cachepath, rv)
                 log.debug('Created cache {}.', cachefile)
+
+                if mem_map:
+                    rv = np.load(cachepath, mmap_mode='r')
+                else:
+                    rv.flags.writeable = False
 
             return rv
 
