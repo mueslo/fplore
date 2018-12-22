@@ -10,6 +10,7 @@ class StreamHandler(logbook.more.ColorizingStreamHandlerMixin,
 
 
 sh = StreamHandler(sys.stdout, level='NOTICE', bubble=True)
+sh.format_string = '{record.level_name} {record.channel}: {record.message}'
 sh.push_application()
 
 log = logbook.Logger("fplore")
