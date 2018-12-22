@@ -6,7 +6,7 @@ from __future__ import division
 import itertools
 import re
 
-from .base import FPLOFile, loader_property
+from .base import FPLOFile, loads
 from .config import FPLOConfig
 from ..logging import log
 
@@ -15,8 +15,8 @@ class Error(FPLOFile):
     __fplo_file__ = "+error"
     load_default = True
 
-    @loader_property()
-    def messages(self):
+    @loads('messages')
+    def load(self):
         messages = open(self.filepath, 'r').read()
 
         if messages.strip() != "":
@@ -29,8 +29,8 @@ class Run(FPLOFile):
     __fplo_file__ = "+run"
     load_default = True
 
-    @loader_property()
-    def data(self):
+    @loads('data')
+    def load(self):
         data = {}
         with open(self.filepath, 'r') as run_file:
             for line in run_file:
@@ -47,8 +47,8 @@ class Dens(FPLOConfig, FPLOFile):
 class Points(FPLOFile):
     __fplo_file__ = "+points"
 
-    @loader_property()
-    def data(self):
+    @loads('data')
+    def load(self):
         points_file = open(self.filepath, 'r')
 
         n_points = int(next(points_file).split()[1])
@@ -70,12 +70,12 @@ class Points(FPLOFile):
 class InFile(FPLOConfig, FPLOFile):
     __fplo_file__ = "=.in"
 
-    @loader_property()
-    def data(self):
-        data = super(InFile, self).data
+    @loads('data')
+    def load(self):
+        data = super(InFile, self).load()['data']
 
-        self.run.version = (self.data.header.version.mainversion,
-                            self.data.header.version.subversion)
+        self.run.version = (data.header.version.mainversion,
+                            data.header.version.subversion)
         log.info("Detected FPLO run with version {}-{}", *self.run.version)
 
         return data

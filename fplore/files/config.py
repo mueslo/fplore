@@ -7,7 +7,7 @@ from pyparsing import (Word, Literal, Regex, Keyword, CaselessKeyword, Forward,
 from fractions import Fraction
 from orderedattrdict import AttrDict
 
-from .base import FPLOFileType, loader_property
+from .base import FPLOFileType, loads
 
 IDENTIFIER = Word(alphas + "_", alphas + nums + "_")
 INT_DECIMAL = Regex(r'([+-]?(([1-9][0-9]*)|0+))')
@@ -76,8 +76,8 @@ def walk(ns, declaration, value):
 class FPLOConfig(with_metaclass(FPLOFileType, object)):
     load_default = True
 
-    @loader_property()
-    def data(self):
+    @loads('data')
+    def load(self):
         with open(self.filepath, 'r') as config_file:
             config_str = config_file.read()
         return self.parse_config(config_str)

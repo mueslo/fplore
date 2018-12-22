@@ -7,15 +7,15 @@ import re
 
 import numpy as np
 
-from .base import FPLOFile, loader_property
+from .base import FPLOFile, loads
 from ..logging import log
 
 
 class DOS(FPLOFile):
     __fplo_file__ = re.compile(r"\+dos\..+")
 
-    @loader_property()
-    def data(self):
+    @loads('data')
+    def load(self):
         dos_file = open(self.filepath, 'r')
 
         header = next(dos_file)

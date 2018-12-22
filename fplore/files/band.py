@@ -14,7 +14,7 @@ from scipy.interpolate import RegularGridInterpolator, LinearNDInterpolator
 from cached_property import cached_property
 from pymatgen.symmetry.groups import PointGroup
 
-from .base import FPLOFile, writeable, loader_property
+from .base import FPLOFile, writeable, loads
 from ..logging import log
 from ..util import (cartesian_product, detect_grid, snap_to_grid,
                     remove_duplicates, in_hull)
@@ -58,7 +58,8 @@ class BandBase(object):
 class BandWeights(BandBase, FPLOFile):
     __fplo_file__ = ("+bweights", "+bweights_kp")
 
-    def _load(self):
+    @loads('data', 'orbitals', disk_cache=True, mem_map={'data'})
+    def load(self):
         weights_file = open(self.filepath, 'r')
         header_str = next(weights_file)
         _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (
@@ -77,13 +78,11 @@ class BandWeights(BandBase, FPLOFile):
         columns = next(weights_file)
         columns = re.sub("[ ]{2,}", "  ", columns)
         columns = columns.split("  ")[1:-1]  # remove # and \n
-        self.orbitals = columns[2:]
-        log.debug(self.orbitals)
+        orbitals = columns[2:]
 
         bar = progressbar.ProgressBar(max_value=n_k*n_bands)
 
-        self.data = self._gen_band_data_array(n_k, n_bands,
-                                              ik=True, weights=True)
+        data = self._gen_band_data_array(n_k, n_bands, ik=True, weights=True)
 
         for i, lines in bar(enumerate(
                 itertools.zip_longest(*[weights_file] * n_bands))):
@@ -92,23 +91,25 @@ class BandWeights(BandBase, FPLOFile):
             weights = []
 
             for line in lines:
-                data = [float(d) for d in line.split()]
-                e.append(data[1])
-                weights.append(data[2:])
+                linedata = [float(d) for d in line.split()]
+                e.append(linedata[1])
+                weights.append(linedata[2:])
 
-            self.data[i]['ik'] = data[0]
-            self.data[i]['e'] = e
-            self.data[i]['c'] = weights
+            data[i]['ik'] = linedata[0]
+            data[i]['e'] = e
+            data[i]['c'] = weights
 
         log.info('Band weight data is {} MiB in size',
-                 self.data.nbytes / (1024 * 1024))
+                 data.nbytes / (1024 * 1024))
+
+        return data, orbitals
 
 
 class Band(BandBase, FPLOFile):
     __fplo_file__ = ("+band", "+band_kp")
 
-    @loader_property(disk_cache=True)
-    def _data(self):
+    @loads('_data', disk_cache=True, mem_map={'_data'})
+    def load(self):
         band_kp_file = open(self.filepath, 'r')
         header_str = next(band_kp_file)
 
@@ -147,7 +148,8 @@ class Band(BandBase, FPLOFile):
 
     @cached_property
     def data(self):
-        """Returns the band data folded back to the first BZ"""
+        """Returns the raw band data plus k-coordinates folded back to the
+        first BZ"""
 
         # convert fractional coordinates to k-space coordinates
         k = self.run.frac_to_k(self._data['frac'])
@@ -158,9 +160,7 @@ class Band(BandBase, FPLOFile):
         view_type = np.dtype([('k', k.dtype, (3,))])
         k_structured = k.view(view_type)[:, 0]
 
-        self._data = merge_arrays([self._data, k_structured], flatten=True)
-
-        return self._data
+        return merge_arrays([self._data, k_structured], flatten=True)
 
     @cached_property
     def symm_data(self):
