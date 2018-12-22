@@ -40,9 +40,9 @@ class FPLORun(object):
 
         log.info("Loaded files: {}", ", ".join(sorted(loaded)))
         log.info("Loadable files: {}", ", ".join(sorted(
-            self.files.keys() - loaded)))
+            set(self.files.keys()) - loaded)))
         log.debug("Not loadable: {}", ", ".join(sorted(
-            set(fnames) - self.files.keys())))
+            set(fnames) - set(self.files.keys()))))
 
     def __getitem__(self, item):
         f = self.files[item]

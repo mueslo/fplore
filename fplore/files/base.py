@@ -36,7 +36,10 @@ def get_cachepath(classname, attrname, filepath):
     mtime = os.path.getmtime(filepath)
     fsize = os.path.getsize(filepath)
 
-    cksum = pack('f', mtime).hex() + pack('I', fsize).hex()
+    try:
+        cksum = pack('f', mtime).hex() + pack('I', fsize).hex()
+    except AttributeError:  # Py2
+        cksum = pack('f', mtime).encode('hex') + pack('I', fsize).encode('hex')
 
     cachedir = "{}/.cache".format(path)
     cachefile = "{}.{}-{}.npy".format(classname, attrname, cksum)
@@ -159,7 +162,7 @@ class FPLOFile(with_metaclass(FPLOFileType, object)):
             return cls.registry['loaders'][fname]
         except KeyError:
             for rgx, loader in cls.registry['loaders_re'].items():
-                if rgx.fullmatch(fname):
+                if rgx.match(fname):
                     return loader
             raise
 

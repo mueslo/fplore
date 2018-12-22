@@ -3,8 +3,9 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
 
-import itertools
 import re
+
+from six.moves import zip_longest
 
 from .base import FPLOFile, loads
 from .config import FPLOConfig
@@ -56,7 +57,7 @@ class Points(FPLOFile):
 
         data = []
 
-        for lines in itertools.zip_longest(*[points_file] * lines_per_point):
+        for lines in zip_longest(*[points_file] * lines_per_point):
             label_match = re.match("^# ' (.*) '$", lines[0])
             label = label_match.group(1)
             ik = float(lines[1].split()[0])

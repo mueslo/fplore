@@ -4,8 +4,8 @@ from __future__ import absolute_import
 from __future__ import division
 
 import re
-import itertools
 
+from six.moves import zip_longest
 import numpy as np
 from numpy.lib.recfunctions import merge_arrays
 import progressbar
@@ -85,7 +85,7 @@ class BandWeights(BandBase, FPLOFile):
         data = self._gen_band_data_array(n_k, n_bands, ik=True, weights=True)
 
         for i, lines in bar(enumerate(
-                itertools.zip_longest(*[weights_file] * n_bands))):
+                zip_longest(*[weights_file] * n_bands))):
 
             e = []
             weights = []
@@ -125,7 +125,7 @@ class Band(BandBase, FPLOFile):
             n_k, n_bands, ik=True, fractional_coords=True)
 
         for i, lines in bar(enumerate(
-                itertools.zip_longest(*[band_kp_file] * (1 + n_spinstates)))):
+                zip_longest(*[band_kp_file] * (1 + n_spinstates)))):
             # read two lines at once for n_spinstates=1, three for n_s=2
 
             # first line
