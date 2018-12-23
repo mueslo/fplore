@@ -57,18 +57,18 @@ You can also specify the filename directly.
 
    band_data = run['+band_kp'].data
 
-Alternatively, you may want to use the raw data as it appears in FPLO's written files without any convenience functionality. This is usually contained within the ``data`` or ``_data`` attribute.
-
-.. code-block:: python
-
-   raw_band_data = run['+band_kp']._data
-
 For example, you can access arbitrary configuration settings from your ``=.in`` like so:
 
 .. code-block:: python
 
-   In [1]: dict(run["=.in"].bandstructure_plot.bandplot_control)
-   Out[1]: {'bandplot': True, 'read_sympoints': True, 'ndivisions': 50, 'emin': -2, 'emax': 2, 'nptdos': 1000, 'plot_idos': False, 'plot_ndos': False, 'restrict_bands_to_window': False, 'coeffout': False}
+   In [3]: run["=.in"].sections
+   Out[3]: dict_keys(['header', 'structure_information', 'structure_dependend', 'mesh', 'brillouin', 'bandstructure_plot', 'iteration_control', 'forces', 'options', 'cpa', 'numerics', 'LSDA_U', 'OPC', 'Advanced_output'])
+
+   In [4]: run["=.in"].structure_information
+   Out[4]: {'structure_type': {'type': 1, 'description': 'Crystal'}, 'spacegroup': {'number': 139, 'symbol': 'I4/MMM'}, 'subgroupgenerators': [], 'lengthunit': {'type': 2, 'description': 'Angstroem'}, 'lattice_constants': [4.0345, 4.0345, 9.828], 'axis_angles': [90.0, 90.0, 90.0], 'max_L': 4, 'nsort': 3, 'wyckoff_positions': [{'element': 'Yb', 'tau': [0, 0, 0]}, {'element': 'Ir', 'tau': [Fraction(1, 2), 0, Fraction(-1, 4)]}, {'element': 'Si', 'tau': [0, 0, 0.3807989986]}]}
+
+   In [5]: run["=.in"].structure_information.lengthunit.description
+   Out[5]: 'Angstroem'
 
 Usage method 2
 --------------
@@ -79,6 +79,7 @@ If you just want to use ``fplore`` to load the raw data of some file and nothing
 
    from fplore.files import FPLOFile
    band = FPLOFile.load("/home/jdoe/fplo_run/+band)
+   raw_band_data = band.data
 
 Which will automatically pick the correct loader class based on the filename. If the files are renamed and this fails, you can manually specify the loader class. See :py:attr:`fplore.files.base.FPLOFile.registry` for the appropriate loader class. For example:
 
@@ -86,7 +87,7 @@ Which will automatically pick the correct loader class based on the filename. If
 
    from fplore.files import Band
    band = Band("/home/jdoe/fplo_run/+band_old")
-   raw_band_data = band._data
+   raw_band_data = band.data
 
 Some ``FPLORun`` properties (excerpt)
 -------------------------------------
