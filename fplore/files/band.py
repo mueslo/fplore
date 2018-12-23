@@ -136,6 +136,9 @@ class Band(BandBase, FPLOFile):
             e = [list(map(float, line_e.split()[1:])) for line_e in lines[1:]]
 
             # todo: don't ignore magnetic split
+            if n_spinstates > 1:
+                log.warning('Ignoring magnetic split (TODO: fix)')
+
             e = e[0]  # ignore magnetic split
 
             data[i]['ik'] = ik
@@ -146,10 +149,16 @@ class Band(BandBase, FPLOFile):
 
         return data
 
+    @property
+    def weights(self):
+        return self.run.band_weights
+
     @cached_property
     def data(self):
         """Returns the raw band data plus k-coordinates folded back to the
-        first BZ"""
+        first BZ (if possible)"""
+        if self.run is None:
+            return self._data
 
         # convert fractional coordinates to k-space coordinates
         k = self.run.frac_to_k(self._data['frac'])

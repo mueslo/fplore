@@ -71,9 +71,9 @@ class Points(FPLOFile):
 class InFile(FPLOConfig, FPLOFile):
     __fplo_file__ = "=.in"
 
-    @loads('data')
+    @loads('_data')
     def load(self):
-        data = super(InFile, self).load()['data']
+        data = super(InFile, self).load()['_data']
 
         self.run.version = (data.header.version.mainversion,
                             data.header.version.subversion)

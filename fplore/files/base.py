@@ -180,12 +180,20 @@ class FPLOFile(with_metaclass(FPLOFileType, object)):
 
     @classmethod
     def load(cls, path):
-        cls.open(path, load=True)
+        return cls.open(path, load=True)
 
     def __init__(self, filepath, run=None):
         self.filepath = filepath
         self.run = run
         # todo: load run if None
+
+    def __repr__(self):
+        if self.run:
+            args = "'{}', run={}".format(
+                os.path.basename(self.filepath), repr(self.run))
+        else:
+            args = "'{}'".format(self.filepath)
+        return "{}({})".format(type(self).__name__, args)
 
 
 @contextmanager

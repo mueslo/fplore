@@ -9,6 +9,8 @@ from orderedattrdict import AttrDict
 
 from .base import FPLOFileType, loads
 
+AttrDict.__repr__ = AttrDict.__str__ = lambda self: str(dict(self))
+
 IDENTIFIER = Word(alphas + "_", alphas + nums + "_")
 INT_DECIMAL = Regex(r'([+-]?(([1-9][0-9]*)|0+))')
 INTEGER = INT_DECIMAL.setParseAction(
@@ -76,11 +78,23 @@ def walk(ns, declaration, value):
 class FPLOConfig(with_metaclass(FPLOFileType, object)):
     load_default = True
 
-    @loads('data')
+    @loads('_data')
     def load(self):
         with open(self.filepath, 'r') as config_file:
             config_str = config_file.read()
         return self.parse_config(config_str)
+
+    @property
+    def sections(self):
+        return dict(self._data).keys()
+
+    def __getattr__(self, item):
+        try:
+            return self.__getattribute__(item)
+        except AttributeError:
+            if item == "_load_cache":
+                raise
+            return self._data[item]
 
     @staticmethod
     def parse_config(config_str):

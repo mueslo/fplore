@@ -51,13 +51,16 @@ class FPLORun(object):
             f.load()
         return f
 
+    def __repr__(self):
+        return "{}('{}')".format(type(self).__name__, self.directory)
+
     @property
     def attrs(self):
         return self["+run"].attrs
 
     @property
     def spacegroup_number(self):
-        return self["=.in"].data.structure_information.spacegroup.number
+        return self["=.in"].structure_information.spacegroup.number
 
     @property
     def spacegroup(self):
@@ -66,7 +69,7 @@ class FPLORun(object):
 
     @property
     def lattice(self):
-        si = self["=.in"].data.structure_information
+        si = self["=.in"].structure_information
 
         # todo: convert non-angstrom units
         assert si.lengthunit.type == 2
@@ -79,7 +82,7 @@ class FPLORun(object):
 
     @property
     def structure(self):
-        si = self["=.in"].data.structure_information
+        si = self["=.in"].structure_information
 
         elements = []
         coords = []
@@ -110,14 +113,19 @@ class FPLORun(object):
     def band(self):
         """Returns the band data file"""
         try:
-            band = self['+band']
+            return self['+band']
         except KeyError:
-            band = self['+band_kp']
-
-        return band
+            return self['+band_kp']
 
     # todo: k-coordinate array class which automatically wraps back to first bz
     #       and irreducible wedge
+
+    @cached_property
+    def band_weights(self):
+        try:
+            return self['+bweights']
+        except KeyError:
+            raise AttributeError
 
     @cached_property
     def high_symm_kpaths(self):
