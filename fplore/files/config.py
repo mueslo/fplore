@@ -54,7 +54,7 @@ CONFIG.ignore(COMMENT)
 
 def walk(ns, declaration, value):
     # walks through declaration tokens recursively and constructs namespace
-    if declaration.type == 'struct':
+    if declaration.type[0] == 'struct':
         if declaration.size:
             subdecs_vals = []
             for i, v in enumerate(value):

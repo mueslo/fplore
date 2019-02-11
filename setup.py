@@ -36,7 +36,7 @@ setup(
         "orderedattrdict~=1.5",
         "cached-property~=1.5",
         "logbook~=1.4",
-        "pyparsing~=2.2",
+        "pyparsing==2.3.1",
         "progressbar2~=3.38",
         "matplotlib>=2.2",
     ],
