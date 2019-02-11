@@ -18,7 +18,7 @@ INTEGER = INT_DECIMAL.setParseAction(
 FLOAT = Regex(r'[+-]?((((\d+\.\d*)|(\d*\.\d+))'
               r'([eE][-+]?\d+)?)|(\d*[eE][+-]?\d+)|INF)').setParseAction(
     lambda s, l, t: float(t[0]))
-FLAG = Regex(r'(?P<key>[A-Z_]+)\((?P<val>[+-])\)').setParseAction(
+FLAG = Regex(r'(?P<key>[a-zA-Z_]+)\((?P<val>[+-])\)').setParseAction(
     lambda s, l, t: (t.key, t.val == '+'))
 (LPAREN, RPAREN, LBRACK, RBRACK, LBRACE, RBRACE,
  SEMI, COMMA, EQUAL, DQUOTE) = map(Suppress, "()[]{};,=\"")
