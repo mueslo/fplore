@@ -42,7 +42,7 @@ def get_cachepath(classname, attrname, filepath):
         cksum = pack('f', mtime).encode('hex') + pack('I', fsize).encode('hex')
 
     cachedir = "{}/.cache".format(path)
-    cachefile = "{}.{}-{}.npy".format(classname, attrname, cksum)
+    cachefile = "{}.{}-{}-{}.npy".format(classname, attrname, filename, cksum)
     return os.path.join(cachedir, cachefile)
 
 

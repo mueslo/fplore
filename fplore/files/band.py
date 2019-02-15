@@ -50,39 +50,44 @@ class BandBase(object):
             dtype.append(('idx', index_type))
 
         if weights:
-            dtype.append(('c', ftype, (num_e, num_e)))
+            if isinstance(weights, bool):
+                num_weights = num_e
+            else:
+                num_weights = weights
+            dtype.append(('c', ftype, (num_e, num_weights)))
 
         return np.zeros(num_k, dtype=dtype)
 
 
 class BandWeights(BandBase, FPLOFile):
-    __fplo_file__ = ("+bweights", "+bweights_kp")
+    __fplo_file__ = ("+bweights", "+bweights_kp", "+bweightslms")
 
-    @loads('data', 'orbitals', disk_cache=True, mem_map={'data'})
+    @loads('data', 'labels', disk_cache=True, mem_map={'data'})
     def load(self):
         weights_file = open(self.filepath, 'r')
         header_str = next(weights_file)
-        _0, _1, n_k, _3, n_bands, n_spinstates, _6, size2 = (
+        _0, _1, n_k, n_weights, n_bands, n_spinstates, _6, size2 = (
             f(x) for f, x in zip((int, float, int, int, int, int, int, int),
                                  header_str.split()[1:]))
 
         # _0: ?
         # _1: energy-related?
         # _2: number of k_points sampled
-        # _3: num weights? should be equal n_bands or 0 (?)
+        # _3: number of weights, should be greater or equal n_bands or 0 (?)
         # _4: number of bands (1), ?
         # _5: number of spin states
         # _6: ?
         # _7: number of bands (2), ?
 
         columns = next(weights_file)
-        columns = re.sub("[ ]{2,}", "  ", columns)
-        columns = columns.split("  ")[1:-1]  # remove # and \n
-        orbitals = columns[2:]
+        columns = re.sub("[ ]{1,}", " ", columns)
+        columns = columns.split(" ")[1:-1]  # remove # and \n
+        labels = columns[2:]
 
         bar = progressbar.ProgressBar(max_value=n_k*n_bands)
 
-        data = self._gen_band_data_array(n_k, n_bands, ik=True, weights=True)
+        data = self._gen_band_data_array(n_k, n_bands, ik=True,
+                                         weights=n_weights)
 
         for i, lines in bar(enumerate(
                 zip_longest(*[weights_file] * n_bands))):
@@ -102,7 +107,18 @@ class BandWeights(BandBase, FPLOFile):
         log.info('Band weight data is {} MiB in size',
                  data.nbytes / (1024 * 1024))
 
-        return data, orbitals
+        return data, labels
+
+    @property
+    def orbitals(self):
+        label_re = re.compile(
+            "(?P<element>[A-Z][a-z]?)"
+            "\((?P<site>\d{3})\)"
+            "(?P<orbital>(?P<n>\d)(?P<l>[spdfg])"
+                "((?P<j>[\d/]+)(?P<mj>[+-][\d/]+)"
+                "|"
+                "(?P<ml>[+-][\d/]+)(?P<s>up|dn)))")
+        return [re.fullmatch(label_re, label) for label in self.labels]
 
 
 class Band(BandBase, FPLOFile):

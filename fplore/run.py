@@ -60,7 +60,7 @@ class FPLORun(object):
 
     @property
     def spacegroup_number(self):
-        return self["=.in"].structure_information.spacegroup.number
+        return int(self["=.in"].structure_information.spacegroup.number)
 
     @property
     def spacegroup(self):
