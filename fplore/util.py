@@ -120,6 +120,8 @@ def backfold_k(A, b):
     of the BZ.
     """
 
+    # TODO handle points on borders of BZ more elegantly
+
     # get adjacent BZ cell's Gamma point locations
     neighbours_k = np.dot(np.array(neighbours), A)
     idx_first_bz = np.argwhere(
@@ -133,13 +135,15 @@ def backfold_k(A, b):
     i = 0
     while True:
         i += 1
+        if i > 10:
+            raise Exception('Backfolding failed')
         log.debug('backfolding... (round {})', i)
 
         # calculate distances to nearest neighbour BZ origins
         dists = cdist(b[idx_requires_backfolding], neighbours_k)
 
         # prevent float inaccuracies from folding on 1st BZ borders:
-        dists[:, idx_first_bz] -= 1e-8
+        dists[:, idx_first_bz] -= 1e-6
 
         # get the index of the BZ origin to which distance is minimal
         bz_idx = np.argmin(dists, axis=1)
@@ -159,7 +163,7 @@ def backfold_k(A, b):
             log.debug("backfolding finished")
             return b
         elif (np.sum(idx_backfolded)/len(idx_backfolded) < .01 or
-              np.sum(idx_backfolded) < 5):
+              np.sum(idx_backfolded) < 5) or i > 9:
             log.debug("backfolded:")
             for iw in np.argwhere(idx_backfolded):
                 log.debug(
