@@ -17,7 +17,7 @@ from pymatgen.symmetry.groups import PointGroup
 from .base import FPLOFile, writeable, loads
 from ..logging import log
 from ..util import (cartesian_product, detect_grid, snap_to_grid,
-                    remove_duplicates, in_hull)
+                    remove_duplicates)
 
 
 # todo unify/subclass Band parser
@@ -266,14 +266,12 @@ class Band(BandBase, FPLOFile):
                 new_data[mc_start:]['idx'] = -1
             if missing_coords_strategy == 'backfold':
                 # backfold missing coordinates
-                missing_coords = self.run.backfold_k(missing_coords.view('3f4'))
+                missing_coords = self.run.backfold_k(
+                    missing_coords.view('3f4'))
 
                 # assert that backfolded missing coordinates are within the
                 # convex hull of data present
                 # todo: if not, return masked array
-                #missing_in_hull = in_hull(missing_coords, sorted_data['k'],
-                #                          tol=1e-5)
-                #assert missing_in_hull.all()
                 # TODO NOTE for now assuming backfolded coords are in hull
                 # because this operation is very slow
                 # should raise an error below anyway, if this is not the case
@@ -285,10 +283,11 @@ class Band(BandBase, FPLOFile):
                     all_k.round(decimals=4), axis=0,
                     return_index=True, return_inverse=True)
 
-                # assert that all missing coordinates have an exact match in data
-                # todo (?): if not, interpolate coordinates
+                # assert that all missing coordinates have an exact match in
+                # data. todo (?): if not, interpolate coordinates
                 existing_data_indices = np.arange(len(sorted_data))
-                missing_data_indices = np.setdiff1d(idx_u, existing_data_indices)
+                missing_data_indices = np.setdiff1d(idx_u,
+                                                    existing_data_indices)
                 log.debug('mdi {}', missing_data_indices)
 
                 if not np.array_equal(idx_u, existing_data_indices):
@@ -300,7 +299,8 @@ class Band(BandBase, FPLOFile):
                     print(new_data[missing_data_indices]['idx'] == -1)
                     print(missing_data_indices)
                     print(new_data[missing_data_indices]['k'].tolist())
-                    log.warning('Not all coordinates could be backfolded onto existing data!')
+                    log.warning('Not all coordinates could be backfolded onto '
+                                'existing data!')
 
                 assert np.array_equal(idx_u, existing_data_indices), "wat"
 

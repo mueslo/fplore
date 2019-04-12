@@ -191,7 +191,8 @@ def plot_bz_proj(run, ax, neighbours=True, rot=None, axis=-1, vectors=True,
         neighbours = run.primitive_lattice.reciprocal_lattice.matrix
     else:
         neighbours = np.array(neighbours)
-        neighbours = np.dot(neighbours, run.primitive_lattice.reciprocal_lattice.matrix)
+        neighbours = np.dot(
+            neighbours, run.primitive_lattice.reciprocal_lattice.matrix)
 
     for facet in run.brillouin_zone:
         facet = np.stack(facet)
@@ -209,9 +210,15 @@ def plot_bz_proj(run, ax, neighbours=True, rot=None, axis=-1, vectors=True,
 
     if vectors:
         x, y, z = P.T
-        ax.arrow(0, 0, *x); ax.text(*x, '100')
-        ax.arrow(0, 0, *y); ax.text(*y, '010')
-        ax.arrow(0, 0, *z); ax.text(*z, '001')
+
+        ax.arrow(0, 0, *x)
+        ax.text(*x, '100')
+
+        ax.arrow(0, 0, *y)
+        ax.text(*y, '010')
+
+        ax.arrow(0, 0, *z)
+        ax.text(*z, '001')
 
     lines = LineCollection(lines, label='Brillouin zone', **kwargs)
     ax.add_collection(lines)

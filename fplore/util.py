@@ -238,7 +238,8 @@ def generate_irreducible_wedge(lattice):
 
 def rot_v1_v2(v1, v2):
     """Returns rotation matrix which rotates v1 onto v2"""
-    v1 = np.array(v1); v2 = np.array(v2)
+    v1 = np.array(v1)
+    v2 = np.array(v2)
     v1 = v1 / np.linalg.norm(v1)
     v2 = v2 / np.linalg.norm(v2)
     cp = np.cross(v1, v2)
@@ -264,6 +265,6 @@ def k_arpes(theta, e_electron, v0, theta2=0.):
 
     e_electron *= eV
     v0 *= eV
-    return (Angstrom*np.sqrt(2*m_e*e_electron)*np.sin(theta)/hbar,
-            Angstrom*np.sqrt(2*m_e*e_electron)*np.sin(theta2)*np.cos(theta)/hbar,
-            Angstrom*np.sqrt(2*m_e*(e_electron*(np.cos(theta)**2*np.cos(theta2)**2) + v0))/hbar)
+    return (Angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta)/hbar,
+            Angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta2) * np.cos(theta)/hbar,  # noqa: E501
+            Angstrom*np.sqrt(2 * m_e * (e_electron * (np.cos(theta)**2 * np.cos(theta2)**2) + v0))/hbar)  # noqa: E501

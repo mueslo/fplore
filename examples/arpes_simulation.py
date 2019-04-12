@@ -35,7 +35,8 @@ ex, ey, ez = R
 
 ax1 = plt.subplot(121)
 plot_bz_proj(run, ax1, rot=R, axis=1, color='grey', lw=0.1,
-             neighbours=[[5, 0, 0], [4, 0, 0], [3, 0, 0], [2, 0, 0],[1, 0, 0]])
+             neighbours=[[5, 0, 0], [4, 0, 0], [3, 0, 0], [2, 0, 0],
+                         [1, 0, 0]])
 
 
 k_par, k_par2, k_perp = k_arpes(theta, e_photon-workfunc_analyzer, v0, theta2)
@@ -69,7 +70,8 @@ ax1.legend(loc='center')
 
 ax2 = plt.subplot(122)
 
-axes, idx_grid = run.band.reshape_gridded_data(missing_coords_strategy='backfold')
+axes, idx_grid = run.band.reshape_gridded_data(
+    missing_coords_strategy='backfold')
 energy_window = (-10., 1.)
 level_indices = run.band.bands_within(*energy_window)
 bands_to_sample = run.band.data['e'][..., level_indices]
@@ -84,4 +86,3 @@ ax2.set_ylim(*energy_window)
 
 plt.suptitle(r'Ag(111), $h\nu = {}\,\mathrm{{eV}}$'.format(e_photon))
 plt.show()
-
