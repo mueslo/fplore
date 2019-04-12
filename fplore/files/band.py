@@ -112,12 +112,12 @@ class BandWeights(BandBase, FPLOFile):
     @property
     def orbitals(self):
         label_re = re.compile(
-            "(?P<element>[A-Z][a-z]?)"
-            "\((?P<site>\d{3})\)"
-            "(?P<orbital>(?P<n>\d)(?P<l>[spdfg])"
-                "((?P<j>[\d/]+)(?P<mj>[+-][\d/]+)"
-                "|"
-                "(?P<ml>[+-][\d/]+)(?P<s>up|dn)))")
+            r"(?P<element>[A-Z][a-z]?)"
+            r"\((?P<site>\d{3})\)"
+            r"(?P<orbital>(?P<n>\d)(?P<l>[spdfg])"
+            r"((?P<j>[\d/]+)(?P<mj>[+-][\d/]+)"
+            r"|"
+            r"(?P<ml>[+-][\d/]+)(?P<s>up|dn)))")
         return [re.fullmatch(label_re, label) for label in self.labels]
 
 
