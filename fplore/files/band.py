@@ -197,7 +197,8 @@ class Band(BandBase, FPLOFile):
         return self.apply_symmetry(self.data, pg.symmetry_ops)
 
     def reshape_gridded_data(self, apply_symmetries=True,
-                             fractional_coords=False):
+                             fractional_coords=False,
+                             missing_coords_strategy='backfold'):
         """Tries to detect if the band data coordinates form a regular,
         rectangular grid, and returns the band data `indexes` reshaped to that
         grid."""
@@ -261,27 +262,50 @@ class Band(BandBase, FPLOFile):
             mc_start = len(sorted_data) - len(regular_grid_coords)
             new_data[mc_start:]['k'] = missing_coords.view('3f4')
 
-            # backfold missing coordinates
-            missing_coords = self.run.backfold_k(missing_coords.view('3f4'))
+            if missing_coords_strategy == 'nan':
+                new_data[mc_start:]['idx'] = -1
+            if missing_coords_strategy == 'backfold':
+                # backfold missing coordinates
+                missing_coords = self.run.backfold_k(missing_coords.view('3f4'))
 
-            # assert that backfolded missing coordinates are within the
-            # convex hull of data present
-            # todo: if not, return masked array
-            missing_in_hull = in_hull(missing_coords, sorted_data['k'],
-                                      tol=1e-5)
-            assert missing_in_hull.all()
+                # assert that backfolded missing coordinates are within the
+                # convex hull of data present
+                # todo: if not, return masked array
+                #missing_in_hull = in_hull(missing_coords, sorted_data['k'],
+                #                          tol=1e-5)
+                #assert missing_in_hull.all()
+                # TODO NOTE for now assuming backfolded coords are in hull
+                # because this operation is very slow
+                # should raise an error below anyway, if this is not the case
 
-            # find exact matches
-            all_k = new_data['k'].copy()
-            all_k[mc_start:] = missing_coords
-            k_u, idx_u, inv_u = np.unique(
-                all_k.round(decimals=4), axis=0,
-                return_index=True, return_inverse=True)
+                # find exact matches
+                all_k = new_data['k'].copy()
+                all_k[mc_start:] = missing_coords
+                k_u, idx_u, inv_u = np.unique(
+                    all_k.round(decimals=4), axis=0,
+                    return_index=True, return_inverse=True)
 
-            # assert that all missing coordinates have an exact match in data
-            # todo (?): if not, interpolate coordinates
-            assert np.array_equal(idx_u, np.arange(len(sorted_data)))
-            new_data['idx'] = new_data['idx'][inv_u]
+                # assert that all missing coordinates have an exact match in data
+                # todo (?): if not, interpolate coordinates
+                existing_data_indices = np.arange(len(sorted_data))
+                missing_data_indices = np.setdiff1d(idx_u, existing_data_indices)
+                log.debug('mdi {}', missing_data_indices)
+
+                if not np.array_equal(idx_u, existing_data_indices):
+                    all_k2 = all_k[existing_data_indices]
+                    k_u, idx_u, inv_u = np.unique(
+                        all_k2.round(decimals=4), axis=0,
+                        return_index=True, return_inverse=True)
+                    new_data[missing_data_indices]['idx'] = -1
+                    print(new_data[missing_data_indices]['idx'] == -1)
+                    print(missing_data_indices)
+                    print(new_data[missing_data_indices]['k'].tolist())
+                    log.warning('Not all coordinates could be backfolded onto existing data!')
+
+                assert np.array_equal(idx_u, existing_data_indices), "wat"
+
+                print(inv_u.shape, new_data.shape)
+                new_data['idx'][existing_data_indices] = new_data['idx'][inv_u]
 
             new_k = new_data['k']
             nsd_idx = np.lexsort((new_k[:, 2], new_k[:, 1], new_k[:, 0]))
