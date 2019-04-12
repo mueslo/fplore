@@ -69,6 +69,7 @@ class FPLORun(object):
 
     @property
     def lattice(self):
+        # lattice matrix: basis vectors are rows
         si = self["=.in"].structure_information
 
         # todo: convert non-angstrom units
@@ -143,9 +144,16 @@ class FPLORun(object):
                 coord, self.primitive_lattice.reciprocal_lattice.matrix)
         return points
 
+    def conventional_to_primitive_k(self, points):
+        A = self.lattice.reciprocal_lattice.matrix
+        Binv = self.primitive_lattice.reciprocal_lattice.inv_matrix
+        trans_mat = np.dot(A, Binv)
+        return np.dot(points, trans_mat)
+
     def backfold_k(self, points):
         return backfold_k(
-            self.primitive_lattice.reciprocal_lattice.matrix, points)
+            self.primitive_lattice.reciprocal_lattice.matrix, points,
+            self.primitive_lattice.reciprocal_lattice.inv_matrix)
 
     def frac_to_k(self, fractional_coords):
         """
@@ -157,8 +165,8 @@ class FPLORun(object):
 
         # coordinates are in terms of conventional unit cell BZ, not primitive
         return np.dot(fractional_coords,
-                      self.lattice.reciprocal_lattice.matrix)
+                      self.lattice.reciprocal_lattice.matrix.T)
 
     def k_to_frac(self, k_coords):
         return np.dot(k_coords,
-                      self.lattice.reciprocal_lattice.inv_matrix)
+                      self.lattice.reciprocal_lattice.inv_matrix.T)

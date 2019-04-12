@@ -173,15 +173,47 @@ def plot_bz(run, ax, vectors=True, k_points=False, use_symmetry=False,
     ax.legend()
 
 
-def plot_bz_proj(run, ax, axis=2, **kwargs):
+def plot_bz_proj(run, ax, neighbours=True, rot=None, axis=-1, vectors=True,
+                 **kwargs):
+    """Projects along given axis (default: last axis) after applying
+    rotation matrix rot"""
+    if rot is None:
+        rot = np.eye(3)
+
     visible_axes = [True] * 3
     visible_axes[axis] = False
+
     lines = []
 
+    if not neighbours:
+        neighbours = []
+    elif neighbours is True:
+        neighbours = run.primitive_lattice.reciprocal_lattice.matrix
+    else:
+        neighbours = np.array(neighbours)
+        neighbours = np.dot(neighbours, run.primitive_lattice.reciprocal_lattice.matrix)
+
     for facet in run.brillouin_zone:
-        proj_facet = np.stack(facet)[:, visible_axes]
-        lines.append(proj_facet.tolist())
+        facet = np.stack(facet)
+        facet = np.array(list(zip(facet, np.roll(facet, -1, axis=0))))
+        lines.extend(facet)
+        for nb in neighbours:
+            lines.extend((facet + nb))
+
+    # project facets
+    P = rot[visible_axes]
+    lines = [np.dot(P, facet.T).T for facet in lines]
+
+    # lines = np.array(lines)
+    # todo: remove duplicate lines
+
+    if vectors:
+        x, y, z = P.T
+        ax.arrow(0, 0, *x); ax.text(*x, '100')
+        ax.arrow(0, 0, *y); ax.text(*y, '010')
+        ax.arrow(0, 0, *z); ax.text(*z, '001')
 
     lines = LineCollection(lines, label='Brillouin zone', **kwargs)
     ax.add_collection(lines)
-    ax.autoscale_view()
+    ax.set_aspect('equal')
+    ax.autoscale_view(tight=True)

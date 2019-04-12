@@ -69,7 +69,6 @@ def snap_to_grid(points, *grid_axes):
 def sample_e(axes, reshaped_data, coords, order=1,
              energy_levels=None):
     """Sample a given ndimage (axes, reshaped_data) at coords"""
-    # todo specify fractional/k-space
 
     if energy_levels is None:
         energy_levels = np.arange(
@@ -109,7 +108,7 @@ def sample_e(axes, reshaped_data, coords, order=1,
     return ret
 
 
-def backfold_k(A, b):
+def backfold_k(A, b, Ainv):
     """
     Wraps an array of k-points b (shape (n_points, 3)) back to the first
     Brillouin zone given a reciprocal lattice matrix A.
