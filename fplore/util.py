@@ -134,7 +134,7 @@ def backfold_k(A, b, Ainv):
     i = 0
     while True:
         i += 1
-        if i > 10:
+        if i > 20:
             raise Exception('Backfolding failed')
         log.debug('backfolding... (round {})', i)
 
@@ -198,6 +198,9 @@ def linspace_ng(start, *stops, **kwargs):
     a plane segment, three stops will span a parallelepiped.
 
     """
+    start = np.array(start)
+    stops = [np.array(stop) for stop in stops]
+
     num = kwargs.get("num", 50)
     vecs = [stop - start for stop in stops]
 
@@ -231,3 +234,36 @@ def generate_irreducible_wedge(lattice):
     to the 'primary' wedge.
     """
     raise NotImplementedError
+
+
+def rot_v1_v2(v1, v2):
+    """Returns rotation matrix which rotates v1 onto v2"""
+    v1 = np.array(v1); v2 = np.array(v2)
+    v1 = v1 / np.linalg.norm(v1)
+    v2 = v2 / np.linalg.norm(v2)
+    cp = np.cross(v1, v2)
+    c = np.dot(v1, v2)  # cosine
+
+    cpm = np.array([[0, -cp[2], cp[1]],
+                   [cp[2], 0, -cp[0]],
+                   [-cp[1], cp[0], 0]])
+
+    return np.eye(3) + cpm + np.dot(cpm, cpm) * 1 / (1 + c)
+
+
+def k_arpes(theta, e_electron, v0, theta2=0.):
+    """Returns the parallel and perpendicular components of electronic plane
+    wave exiting a crystal with inner potential `v0` at angle `theta` with an
+    energy of `e_electron`"""
+
+    # temporary units until a unit library has been chosen (or written)
+    hbar = 1.0545718 * 10 ** -34
+    m_e = 9.10938356 * 10 ** -31
+    eV = 1.60217662 * 10 ** -19
+    Angstrom = 10 ** -10
+
+    e_electron *= eV
+    v0 *= eV
+    return (Angstrom*np.sqrt(2*m_e*e_electron)*np.sin(theta)/hbar,
+            Angstrom*np.sqrt(2*m_e*e_electron)*np.sin(theta2)*np.cos(theta)/hbar,
+            Angstrom*np.sqrt(2*m_e*(e_electron*(np.cos(theta)**2*np.cos(theta2)**2) + v0))/hbar)
