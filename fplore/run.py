@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
 
 import os
 
 import numpy as np
 from cached_property import cached_property
+from scipy.spatial.transform import Rotation
 from pymatgen.core import Structure, Lattice
 from pymatgen.symmetry.groups import SpaceGroup, sg_symbol_from_int_number
 from pymatgen.symmetry.bandstructure import HighSymmKpath
@@ -14,6 +12,7 @@ from pymatgen.symmetry.bandstructure import HighSymmKpath
 from .logging import log
 from .util import backfold_k
 from .files.base import FPLOFile
+from .files import DOS
 
 
 class FPLORun(object):
@@ -75,9 +74,16 @@ class FPLORun(object):
         # todo: convert non-angstrom units
         assert si.lengthunit.type == 2
 
-        lattice = Lattice.from_lengths_and_angles(
-            abc=si.lattice_constants,
-            ang=si.axis_angles)
+        lattice = Lattice.from_parameters(
+            *si.lattice_constants, 
+            *si.axis_angles)
+
+        # translate to FPLO convention
+        # see also: https://www.listserv.dfn.de/sympa/arc/fplo-users/2020-01/msg00002.html
+        if self.spacegroup.crystal_system in ('trigonal', 'hexagonal'):
+            lattice = Lattice(lattice.matrix @ Rotation.from_rotvec([0, 0, 30], degrees=True).as_matrix())
+        elif self.spacegroup.crystal_system not in ('cubic', 'tetragonal', 'orthorhombic'):
+            log.warning('untested lattice, crystal orientation may not be correct')
 
         return lattice
 
@@ -128,6 +134,11 @@ class FPLORun(object):
         except KeyError:
             raise AttributeError
 
+    def dos(self, **kwargs):
+        dos_files = filter(lambda x: isinstance(x, DOS), self.files)
+        print(dos_files)
+        raise NotImplementedError
+
     @cached_property
     def high_symm_kpaths(self):
         return HighSymmKpath(self.primitive_structure).kpath['path']
@@ -140,33 +151,39 @@ class FPLORun(object):
     def high_symm_kpoints(self):
         points = self.high_symm_kpoints_fractional
         for label, coord in points.items():
-            points[label] = np.dot(
-                coord, self.primitive_lattice.reciprocal_lattice.matrix)
+            points[label] = coord @ self.primitive_lattice.reciprocal_lattice.matrix
         return points
 
     def conventional_to_primitive_k(self, points):
         A = self.lattice.reciprocal_lattice.matrix
         Binv = self.primitive_lattice.reciprocal_lattice.inv_matrix
-        trans_mat = np.dot(A, Binv)
-        return np.dot(points, trans_mat)
+        trans_mat = A @ Binv
+        return points @ trans_mat
 
     def backfold_k(self, points):
         return backfold_k(
-            self.primitive_lattice.reciprocal_lattice.matrix, points,
-            self.primitive_lattice.reciprocal_lattice.inv_matrix)
+            self.primitive_lattice.reciprocal_lattice.matrix, points)
 
-    def frac_to_k(self, fractional_coords):
+    def fplo_to_k(self, fplo_coords):
         """
-        Transforms fractional lattice coordinates to k-space coordinates.
+        Transforms fplo fractional lattice coordinates (units 2pi/a) to k-space coordinates.
+
+        :param fractional_coords: Nx3
+        :return: k_points: Nx3
+        """
+
+        return 2*np.pi/self.lattice.a * fplo_coords
+
+    def _frac_to_k(self, fractional_coords):
+        """
+        Transforms fractional reciprocal lattice coordinates to k-space coordinates.
 
         :param fractional_coords: Nx3
         :return: k_points: Nx3
         """
 
         # coordinates are in terms of conventional unit cell BZ, not primitive
-        return np.dot(fractional_coords,
-                      self.lattice.reciprocal_lattice.matrix.T)
+        return fractional_coords @ self.lattice.reciprocal_lattice.matrix
 
-    def k_to_frac(self, k_coords):
-        return np.dot(k_coords,
-                      self.lattice.reciprocal_lattice.inv_matrix.T)
+    def _k_to_frac(self, k_coords):
+        return k_coords @ self.lattice.reciprocal_lattice.inv_matrix

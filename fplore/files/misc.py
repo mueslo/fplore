@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
-
 import re
 
-from six.moves import zip_longest
+from itertools import zip_longest
 
 from .base import FPLOFile, loads
 from .config import FPLOConfig
@@ -18,7 +14,8 @@ class Error(FPLOFile):
 
     @loads('messages')
     def load(self):
-        messages = open(self.filepath, 'r').read()
+        with open(self.filepath, 'r') as f:
+            messages = f.read()
 
         if messages.strip() != "":
             log.warning('+error file not empty:\n{}', messages)

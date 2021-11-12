@@ -3,13 +3,15 @@ import itertools
 import numpy as np
 from scipy.ndimage import map_coordinates
 from scipy.spatial.distance import cdist
-from scipy.spatial import Delaunay
+from scipy.spatial import Delaunay, Voronoi
+from scipy.constants import hbar, m_e, eV, angstrom, c
+from pymatgen.core import Lattice
 
 from .logging import log
 
 nbs = (0, 1, -1)
 neighbours = list(itertools.product(nbs, nbs, nbs))
-
+idx_000 = neighbours.index((0, 0, 0))
 
 def cartesian_product(*xs):
     """Iterates over primary axis first, then second, etc."""
@@ -55,6 +57,54 @@ def detect_grid(coordinates):
         raise
 
     return xs_grid, ys_grid, zs_grid
+
+
+def find_basis(lattice_points):  
+    basis = []
+    dists = np.linalg.norm(lattice_points, axis=1)
+    valid = (dists != 0)
+    lattice_points = lattice_points[valid]
+    dists = dists[valid]
+    
+    n=12
+    
+    # find n shortest vectors
+    partition = np.argpartition(dists, n)[:n]
+    order = np.argsort(dists[partition])
+    smallest = lattice_points[partition][order]
+    
+    basis = None
+    for basis_candidate in itertools.permutations(smallest, 3):
+        if np.linalg.matrix_rank(basis_candidate) < 3:
+            continue
+        basis = np.array(basis_candidate) 
+        break
+    else:
+        raise Exception('Points do not span a volume')
+    
+
+    try:
+        # diff to grid
+        inv_basis = np.linalg.inv(basis)
+        frac = lattice_points @ inv_basis
+        diff = frac - np.rint(frac)
+        max_diff = np.linalg.norm(diff, axis=1).max()
+        assert max_diff < 1e-4, f'max_diff {max_diff}'
+
+        # assert grid has no major holes (e.g. basis too small)
+        uniq_x, uniq_y, uniq_z = [np.unique(frac[:, i].round(decimals=4)) for i in range(3)]
+        assert np.allclose(uniq_x, np.arange(uniq_x[0], uniq_x[-1]+1)), 'x'
+        assert np.allclose(uniq_y, np.arange(uniq_y[0], uniq_y[-1]+1)), 'y'
+        assert np.allclose(uniq_z, np.arange(uniq_z[0], uniq_z[-1]+1)), 'z'
+    except AssertionError as e:
+        log.debug(e)
+        return None
+    
+    return basis
+
+
+def find_lattice(lattice_points):
+    return Lattice(find_basis(lattice_points)).get_niggli_reduced_lattice()
 
 
 def snap_to_grid(points, *grid_axes):
@@ -108,7 +158,68 @@ def sample_e(axes, reshaped_data, coords, order=1,
     return ret
 
 
-def backfold_k(A, b, Ainv):
+def wigner_seitz_neighbours(lattice):
+    ksamp_lattice_points = np.array(neighbours) @ lattice.matrix
+    vor = Voronoi(ksamp_lattice_points)
+
+    ws_nbs = frozenset(itertools.chain.from_iterable(
+        set(a) for a in vor.ridge_points if idx_000 in a))  - {idx_000}
+    ws_nbs = np.array(list(ws_nbs))
+
+    ws_nbs = vor.points[ws_nbs] @ lattice.inv_matrix
+    ws_nbs = set(map(tuple, np.rint(ws_nbs).astype(int)))
+
+    return ws_nbs  # wigner-seitz cell neighbours in units of basis vectors
+
+
+def fill_bz(k, reciprocal_lattice, ksamp_lattice=None, pad=False):
+    ksamp_lattice = ksamp_lattice or find_lattice(k)
+    neighbours_lattice = wigner_seitz_neighbours(ksamp_lattice)
+
+    #idx_first_bz = in_first_bz(k, reciprocal_lattice)
+    #k = k[idx_first_bz]
+
+    ksamp_lattice_ijk = k @ ksamp_lattice.inv_matrix  # (N, 3) array of float
+    ksamp_lattice_ijk = set(map(tuple, np.rint(ksamp_lattice_ijk).astype(int)))  # convert to set of tuples of int
+    checked = set()
+    to_check = ksamp_lattice_ijk.copy()
+
+    while to_check:
+        new_ijk = set()
+        for p in to_check:
+            new_ijk.update(set((p[0] + nb[0], p[1] + nb[1], p[2] + nb[2]) for nb in neighbours_lattice))
+        
+        checked |= to_check
+        new_ijk -= checked
+
+        if pad:
+            checked |= new_ijk
+        new_ijk = np.array(list(new_ijk))
+        new_ijk_in1bz = in_first_bz(new_ijk @ ksamp_lattice.matrix, reciprocal_lattice)
+        new_ijk = new_ijk[new_ijk_in1bz] # remove those not inside 1st bz
+        to_check = set(map(tuple, new_ijk))
+    
+    return np.array(list(checked - ksamp_lattice_ijk)) @ ksamp_lattice.matrix
+
+"""
+def pad_regular_sampling_lattice(k, ksamp_lattice=None):
+    ksamp_lattice = ksamp_lattice or find_lattice(k)
+    neighbours_lattice = wigner_seitz_neighbours(ksamp_lattice)
+
+    ksamp_lattice_ijk = k @ ksamp_lattice.inv_matrix  # (N, 3) array of float
+    ksamp_lattice_ijk = set(map(tuple, np.rint(ksamp_lattice_ijk).astype(int)))  # convert to set of tuples of int
+
+    expanded_lattice_ijk = ksamp_lattice_ijk.copy()
+    for p in ksamp_lattice_ijk:
+        expanded_lattice_ijk.update(set((p[0] + nb[0], p[1] + nb[1], p[2] + nb[2]) for nb in neighbours_lattice))
+
+    extra_ijk = np.array(list(expanded_lattice_ijk - ksamp_lattice_ijk))
+    extra_k = extra_ijk @ ksamp_lattice.matrix
+
+    return extra_k, extra_ijk"""
+
+
+def backfold_k(A, b):
     """
     Wraps an array of k-points b (shape (n_points, 3)) back to the first
     Brillouin zone given a reciprocal lattice matrix A.
@@ -120,14 +231,18 @@ def backfold_k(A, b, Ainv):
     """
 
     # TODO handle points on borders of BZ more elegantly
+    # TODO make sure translationally equivalent points not present (brillouin zone boundary)
 
     # get adjacent BZ cell's Gamma point locations
-    neighbours_k = np.dot(np.array(neighbours), A)
-    idx_first_bz = np.argwhere(
-        (neighbours_k == [0., 0., 0.]).all(axis=1))[0, 0]
+    neighbours_k = np.array(neighbours) @ A
 
     # make a copy of `b' since we will be operating directly on it
     b = np.copy(b)
+
+    # to reduce problems due to translational equivalence (borders of BZ)
+    # we directly fold to the parallelepiped spanned by the reciprocal lattice basis
+    Ainv = np.linalg.inv(A)
+    b = ((b @ Ainv + 1e-4) % 1 - 1e-4) @ A
 
     # all coordinates need to be backfolded initially
     idx_requires_backfolding = np.arange(len(b))
@@ -142,7 +257,7 @@ def backfold_k(A, b, Ainv):
         dists = cdist(b[idx_requires_backfolding], neighbours_k)
 
         # prevent float inaccuracies from folding on 1st BZ borders:
-        dists[:, idx_first_bz] -= 1e-6
+        dists[:, idx_000] -= 1e-6
 
         # get the index of the BZ origin to which distance is minimal
         bz_idx = np.argmin(dists, axis=1)
@@ -161,14 +276,6 @@ def backfold_k(A, b, Ainv):
         if not np.any(idx_backfolded):
             log.debug("backfolding finished")
             return b
-        elif (np.sum(idx_backfolded)/len(idx_backfolded) < .01 or
-              np.sum(idx_backfolded) < 5) or i > 9:
-            log.debug("backfolded:")
-            for iw in np.argwhere(idx_backfolded):
-                log.debug(
-                    "  {} -> {}",
-                    b[idx_requires_backfolding][iw],
-                    backfolded[iw])
 
         # assign backfolded coordinates to output array
         b[idx_requires_backfolding] = backfolded
@@ -214,7 +321,23 @@ def linspace_ng(start, *stops, **kwargs):
         *(np.linspace(0, 1, num=n) for n in num))).T
     A = np.vstack(vecs)
 
-    return np.dot(grid, A) + start
+    return grid @ A + start
+
+
+def in_first_bz(p, reciprocal_lattice):
+    """
+    Test if points `p` are in the first Brillouin zone
+    """
+    ws_neighbours = list(wigner_seitz_neighbours(reciprocal_lattice))
+    idx_000 = 0
+    ws_neighbours.insert(idx_000, (0, 0, 0))
+    neighbours_k = np.array(ws_neighbours) @ reciprocal_lattice.matrix
+    dists = cdist(p, neighbours_k)
+
+    # prevent float inaccuracies from folding on 1st BZ borders:
+    dists[:, idx_000] -= 1e-6
+
+    return np.argmin(dists, axis=1) == idx_000
 
 
 def in_hull(p, hull, **kwargs):
@@ -252,19 +375,24 @@ def rot_v1_v2(v1, v2):
     return np.eye(3) + cpm + np.dot(cpm, cpm) * 1 / (1 + c)
 
 
-def k_arpes(theta, e_electron, v0, theta2=0.):
+def k_arpes(theta, e_photon, phi_det, v0, e_bind=0., theta2=0., geometry=None):
     """Returns the parallel and perpendicular components of electronic plane
     wave exiting a crystal with inner potential `v0` at angle `theta` with an
     energy of `e_electron`"""
 
-    # temporary units until a unit library has been chosen (or written)
-    hbar = 1.0545718 * 10 ** -34
-    m_e = 9.10938356 * 10 ** -31
-    eV = 1.60217662 * 10 ** -19
-    Angstrom = 10 ** -10
-
-    e_electron *= eV
+    e_photon *= eV
+    phi_det *= eV
+    e_bind *= eV
     v0 *= eV
-    return (Angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta)/hbar,
-            Angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta2) * np.cos(theta)/hbar,  # noqa: E501
-            Angstrom*np.sqrt(2 * m_e * (e_electron * (np.cos(theta)**2 * np.cos(theta2)**2) + v0))/hbar)  # noqa: E501
+    e_electron = e_photon - e_bind - phi_det
+    k = np.array([angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta)/hbar,
+         angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta2) * np.cos(theta)/hbar,  # noqa: E501
+         angstrom*np.sqrt(2 * m_e * (e_electron * (np.cos(theta)**2 * np.cos(theta2)**2) + v0))/hbar])  # noqa: E501
+
+    if geometry:
+        log.debug('using photon momentum correction')
+        k = (k - angstrom*(e_photon/(hbar*c))*geometry.photon_direction_sample_coords[:, np.newaxis])
+
+    return k
+
+#k_arpes = np.vectorize(k_arpes, signature='(1),(1),(1),(1),(1?),(1?),(1?)->(3)')

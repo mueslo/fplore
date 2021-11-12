@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
 
 import re
+from itertools import zip_longest
 
-from six.moves import zip_longest
 import numpy as np
 from numpy.lib.recfunctions import merge_arrays
 import progressbar
@@ -13,11 +10,13 @@ from scipy.stats.distributions import norm
 from scipy.interpolate import RegularGridInterpolator, LinearNDInterpolator
 from cached_property import cached_property
 from pymatgen.symmetry.groups import PointGroup
+from pymatgen.core import Lattice
 
 from .base import FPLOFile, writeable, loads
 from ..logging import log
-from ..util import (cartesian_product, detect_grid, snap_to_grid,
-                    remove_duplicates)
+from ..util import (cartesian_product, find_basis, detect_grid,
+                    remove_duplicates, snap_to_grid, fill_bz,
+                    find_lattice)
 
 
 # todo unify/subclass Band parser
@@ -58,9 +57,19 @@ class BandBase(object):
 
         return np.zeros(num_k, dtype=dtype)
 
+    def bands_at_energy(self, e=0., tol=0.05):
+        """Returns the indices of bands which cross a certain energy level"""
+        idx_band = np.any(np.abs(self.data['e'] - e) < tol, axis=0)
+        return np.where(idx_band)[0]
+
+    def bands_within(self, e_lower=-0.025, e_upper=0.025):
+        e = (e_lower + e_upper) / 2
+        tol = np.abs(e_upper - e_lower) / 2
+        return self.bands_at_energy(e=e, tol=tol)
+
 
 class BandWeights(BandBase, FPLOFile):
-    __fplo_file__ = ("+bweights", "+bweights_kp", "+bweightslms")
+    __fplo_file__ = ("+bweights", "+bweights_kp", "+bweightslms", "+bwsum")
 
     @loads('data', 'labels', disk_cache=True, mem_map={'data'})
     def load(self):
@@ -118,7 +127,7 @@ class BandWeights(BandBase, FPLOFile):
             r"((?P<j>[\d/]+)(?P<mj>[+-][\d/]+)"
             r"|"
             r"(?P<ml>[+-][\d/]+)(?P<s>up|dn)))")
-        return [re.fullmatch(label_re, label) for label in self.labels]
+        return [re.fullmatch(label_re, label) or label for label in self.labels]
 
 
 class Band(BandBase, FPLOFile):
@@ -171,16 +180,13 @@ class Band(BandBase, FPLOFile):
 
     @cached_property
     def data(self):
-        """Returns the raw band data plus k-coordinates folded back to the
-        first BZ (if possible)"""
+        """Returns the raw band data plus k-coordinates (if possible)"""
         if self.run is None:
+            log.info('No associated FPLORun, cannot convert fractional FPLO units (2pi/a) to k')
             return self._data
 
         # convert fractional coordinates to k-space coordinates
-        k = self.run.frac_to_k(self._data['frac'])
-
-        # wrap points to primitive unit cell BZ
-        k = self.run.backfold_k(k)
+        k = self.run.fplo_to_k(self._data['frac'])
 
         view_type = np.dtype([('k', k.dtype, (3,))])
         k_structured = k.view(view_type)[:, 0]
@@ -191,13 +197,65 @@ class Band(BandBase, FPLOFile):
     def symm_data(self):
         """Returns the band data folded back to the first BZ and applies
         symmetry operations. Returns an index array to reduce memory usage."""
-        pg = PointGroup(self.run.spacegroup.point_group)
 
+        base_lattice = self.run.lattice
+        basis = None  # skip basis transformation for cartesian-aligned lattices
+        # for body/face centered cubic, symm_ops are in non-primitive simple cubic axes
+        
+        if self.run.spacegroup.crystal_system in ('trigonal', 'hexagonal'):
+            # symm ops are in primitive (rhombohedral) basis vectors (hkl)
+            base_lattice = self.run.primitive_lattice
+            basis = base_lattice.reciprocal_lattice.matrix
+        elif self.run.spacegroup.crystal_system not in ('cubic', 'tetragonal'):
+            log.warning('untested crystal system, k-space symmetrization may be wrong')
+        symm_ops = base_lattice.get_recp_symmetry_operation()
+        
         # apply symmetry operations from point group
-        return self.apply_symmetry(self.data, pg.symmetry_ops)
+        data = self.apply_symmetry(self.data, symm_ops, basis=basis)
+        data['k'] = self.run.backfold_k(data['k'])
+        data = remove_duplicates(data)
+        return data
+
+    @cached_property
+    def padded_symm_data(self):
+        k = self.symm_data['k']
+        ksamp_lattice = find_lattice(k)
+        extra_k = fill_bz(k, self.run.primitive_lattice.reciprocal_lattice, ksamp_lattice=ksamp_lattice, pad=True)
+        #extra_k, extra_ijk = pad_regular_sampling_lattice(k_fill, ksamp_lattice=ksamp_lattice)
+        extra_k_frac = (extra_k @ self.run.primitive_lattice.reciprocal_lattice.inv_matrix + 1e-4) % 1 -1e-4 # k to reciprocal lattice vectors parallelepiped
+        # 1e-4 for consistency even with float inaccuracies
+
+        lattice_ijk = extra_k_frac @ self.run.primitive_lattice.reciprocal_lattice.matrix @ ksamp_lattice.inv_matrix
+        lattice_ijk = list(map(tuple, np.rint(lattice_ijk).astype(int)))  # == extra_ijk folded back to parallelepiped, todo check residuals
+
+        new_data = self._gen_band_data_array(len(self.symm_data) + len(extra_k),
+                                             k_coords=True, index=True)
+
+        new_data[:len(self.symm_data)] = self.symm_data
+        new_data[len(self.symm_data):]['k'] = extra_k
+
+        idx_map = self.ksamp_idx_map(ksamp_lattice)
+        try:
+            new_data[len(self.symm_data):]['idx'] = [idx_map[ijk] for ijk in lattice_ijk]
+        except KeyError as ke:
+            print(ke)
+            breakpoint()
+
+        return new_data
+
+
+    def ksamp_idx_map(self, ksamp_lattice):
+        """dict : ijk k-sample lattice coordinates in basis parallelepiped -> unique idx"""
+        data = self.symm_data
+        frac = (data['k'] @ self.run.primitive_lattice.reciprocal_lattice.inv_matrix +1e-4) % 1 -1e-4  # k to reciprocal lattice vectors parallelepiped
+
+        # lattice_ijk maps k sample ijk values to unique index
+        lattice_ijk = frac @ self.run.primitive_lattice.reciprocal_lattice.matrix @ ksamp_lattice.inv_matrix
+        lattice_ijk = map(tuple, np.rint(lattice_ijk).astype(int))
+
+        return dict(zip(lattice_ijk, data['idx']))  # map sampling lattice ijk to unique index
 
     def reshape_gridded_data(self, apply_symmetries=True,
-                             fractional_coords=False,
                              missing_coords_strategy='backfold'):
         """Tries to detect if the band data coordinates form a regular,
         rectangular grid, and returns the band data `indexes` reshaped to that
@@ -207,31 +265,46 @@ class Band(BandBase, FPLOFile):
         # todo 2d reshape
 
         if apply_symmetries:
-            data = self.symm_data
+            data = self.padded_symm_data
         else:
             data = self._gen_band_data_array(len(self.data),
                                              k_coords=True, index=True)
             data['k'] = self.data['k']
             data['idx'] = np.arange(len(self.data))
 
-        if fractional_coords:
-            raise NotImplementedError
+        data = remove_duplicates(data)  # remove duplicate k values
+
+        #xs, ys, zs = axes = detect_grid(data['k'])
+        basis = find_basis(data['k'])
+        if basis is None:
+            log.warning('No regular k grid detected')
+            return None
+
+        lattice = Lattice(basis).get_niggli_reduced_lattice()
+
+        if not lattice.is_orthogonal:
+            log.warning('Non-orthogonal grid detected, reshape_gridded_data will return `None`')
+            return None
+
+        if np.logical_not(np.isclose(lattice.matrix, 0)).sum() > 3:
+            log.debug(lattice)
+            log.warning('Rotated orthogonal grid not implemented')
+            return None
 
         xs, ys, zs = axes = detect_grid(data['k'])
         with writeable(data):
-            data['k'] = snap_to_grid(data['k'], *axes)
+            data['k'] = snap_to_grid(data['k'], *axes)  # required to prevent float inaccuracy errors below
         regular_grid_coords = cartesian_product(*axes)
         shape = len(xs), len(ys), len(zs)
 
         k = data['k']
-        sort_idx = np.lexsort((k[:, 2], k[:, 1], k[:, 0]))
+        k_set = set(map(tuple, k.round(decimals=4)))
+        rgc_set = set(map(tuple, regular_grid_coords.round(decimals=4)))
 
-        sorted_data = data[sort_idx]
-
-        if np.array_equal(sorted_data['k'], regular_grid_coords):
+        if k_set == rgc_set:
             log.debug('detected regular k-sample grid of shape {}', shape)
-
-            return axes, sorted_data.reshape(*shape)['idx']
+            sort_idx = np.lexsort((k[:, 2], k[:, 1], k[:, 0]))
+            return axes, data[sort_idx].reshape(*shape)['idx']
 
         else:
             log.debug('detected sparse k-sample grid')
@@ -239,7 +312,7 @@ class Band(BandBase, FPLOFile):
             # (irregular k-points), detect_grid should throw an AssertionError
 
             sd_coords = np.core.records.fromarrays(
-                sorted_data['k'].T, formats="f4, f4, f4")
+                k.T, formats="f4, f4, f4")
             rgc_coords = np.core.records.fromarrays(
                 regular_grid_coords.T, formats="f4, f4, f4")
 
@@ -250,93 +323,70 @@ class Band(BandBase, FPLOFile):
             # subset of regular_grid_coords
             if len(missing_coords) != len(rgc_coords) - len(sd_coords):
                 log.error("FIXME float inaccuracy errors")
+                log.debug(f"{len(missing_coords)} {len(rgc_coords)} {len(sd_coords)}") 
+                breakpoint() 
+                raise Exception()
 
             new_data = self._gen_band_data_array(
                 len(regular_grid_coords), k_coords=True, index=True)
 
-            # add existing data
-            new_data[:len(sorted_data)]['k'] = sorted_data['k']
-            new_data[:len(sorted_data)]['idx'] = sorted_data['idx']
+            # add existing data to the beginning
+            new_data[:len(data)]['k'] = data['k']
+            new_data[:len(data)]['idx'] = data['idx']
 
-            # add missing coordinates
-            mc_start = len(sorted_data) - len(regular_grid_coords)
-            new_data[mc_start:]['k'] = missing_coords.view('3f4')
+            # add missing coordinates after
+            #mc_start = len(sorted_data) - len(regular_grid_coords)
+            new_data[len(data):]['k'] = missing_coords.view('3f4')
 
             if missing_coords_strategy == 'nan':
-                new_data[mc_start:]['idx'] = -1
+                new_data[len(data):]['idx'] = -1
             if missing_coords_strategy == 'backfold':
-                # backfold missing coordinates
-                missing_coords = self.run.backfold_k(
-                    missing_coords.view('3f4'))
-
-                # assert that backfolded missing coordinates are within the
-                # convex hull of data present
-                # todo: if not, return masked array
-                # TODO NOTE for now assuming backfolded coords are in hull
-                # because this operation is very slow
-                # should raise an error below anyway, if this is not the case
+                missing_coords = missing_coords.view('3f4')
 
                 # find exact matches
                 all_k = new_data['k'].copy()
-                all_k[mc_start:] = missing_coords
+                all_k = (all_k @ self.run.primitive_lattice.reciprocal_lattice.inv_matrix + 1e-4) % 1 -1e-4 # k to reciprocal lattice vectors parallelepiped
+                all_k = all_k @ self.run.primitive_lattice.reciprocal_lattice.matrix
+
                 k_u, idx_u, inv_u = np.unique(
                     all_k.round(decimals=4), axis=0,
                     return_index=True, return_inverse=True)
+                    
+                # k_u: unique values of all_k
+                # idx_u: indices of unique values of all_k
+                # inv_u: indices of origin values on k_u (k_u[inv_u] == all_k)
 
                 # assert that all missing coordinates have an exact match in
-                # data. todo (?): if not, interpolate coordinates
-                existing_data_indices = np.arange(len(sorted_data))
-                missing_data_indices = np.setdiff1d(idx_u,
-                                                    existing_data_indices)
+                # data.
+                existing_data_indices = np.arange(len(data))
+                missing_data_indices = np.setdiff1d(idx_u, existing_data_indices)
                 log.debug('mdi {}', missing_data_indices)
 
-                if not np.array_equal(idx_u, existing_data_indices):
-                    all_k2 = all_k[existing_data_indices]
-                    k_u, idx_u, inv_u = np.unique(
-                        all_k2.round(decimals=4), axis=0,
-                        return_index=True, return_inverse=True)
-                    new_data[missing_data_indices]['idx'] = -1
-                    print(new_data[missing_data_indices]['idx'] == -1)
-                    print(missing_data_indices)
-                    print(new_data[missing_data_indices]['k'].tolist())
-                    log.warning('Not all coordinates could be backfolded onto '
-                                'existing data!')
+                missing_idx = idx_u >= len(data)
+                # make sure all unique k are contained in available data
+                assert not any(missing_idx), f"{sum(missing_idx)} k not found" 
 
-                assert np.array_equal(idx_u, existing_data_indices), "wat"
-
-                print(inv_u.shape, new_data.shape)
-                new_data['idx'][existing_data_indices] = new_data['idx'][inv_u]
+                new_data['idx'] = new_data['idx'][idx_u][inv_u]
 
             new_k = new_data['k']
             nsd_idx = np.lexsort((new_k[:, 2], new_k[:, 1], new_k[:, 0]))
             new_sorted_data = new_data[nsd_idx]
             assert np.array_equal(new_sorted_data['k'], regular_grid_coords)
-
             return axes, new_sorted_data.reshape(*shape)['idx']
 
     @cached_property
     def interpolator(self):
+        """Returns an interpolator that accepts sampling points of shape (..., 3)
+        and returns energy levels of shape (..., n_e)"""
+        # TODO: get_interpolator with arguments, e.g. band selection
         if self.reshape_gridded_data() is None:
-            log.warning('doing expensive irregular interpolation')
-            return LinearNDInterpolator(self.data['k'], self.data['e'])
+            log.warning('Preparing triangulated interpolation')
+            data = self.padded_symm_data
+            data_e = self.data[data['idx']]['e']
+            return LinearNDInterpolator(data['k'], data_e)
 
-        axes, data = self.reshape_gridded_data()
-        return RegularGridInterpolator(axes, data['e'])
-
-    @cached_property
-    def symm_interpolator(self):
-        return LinearNDInterpolator(
-            self.symm_data['k'], self.band['e'][self.symm_data['idx']])
-
-    def bands_at_energy(self, e=0., tol=0.05):
-        """Returns the indices of bands which cross a certain energy level"""
-        idx_band = np.any(np.abs(self.data['e'] - e) < tol, axis=0)
-        return np.where(idx_band)[0]
-
-    def bands_within(self, e_lower=-0.025, e_upper=0.025):
-        e = (e_lower + e_upper) / 2
-        tol = np.abs(e_upper - e_lower) / 2
-        return self.bands_at_energy(e=e, tol=tol)
+        axes, data_idx = self.reshape_gridded_data()
+        return RegularGridInterpolator(axes, self.data[data_idx]['e'])
 
     @staticmethod
     def smooth_overlap(e_k_3d, e=0., scale=0.02, axis=2):
@@ -347,7 +397,7 @@ class Band(BandBase, FPLOFile):
         return np.sum(t1, axis=(axis, 3))
 
     @classmethod
-    def apply_symmetry(cls, data, symm_ops):
+    def apply_symmetry(cls, data, symm_ops, basis=None):
         """
         Applies the given symmetry operations to the k-space coordinates in
         `data` and returns a structured array with fields `k` and `idx`.
@@ -358,18 +408,75 @@ class Band(BandBase, FPLOFile):
         """
 
         k_points = data['k']
+        if basis is not None:
+            k_points = k_points @ np.linalg.inv(basis) # from cartesian to basis vectors
+        num_k = len(k_points)
 
-        num_k, num_e = data['e'].shape
         k_idx = np.arange(num_k)
         new_data_idx = cls._gen_band_data_array(num_k*len(symm_ops),
                                                 k_coords=True, index=True)
         for i, op in enumerate(symm_ops):
             rot = op.rotation_matrix
-            new_k_points = np.dot(rot, k_points.T).T
+            new_k_points = k_points @ rot
             new_data_idx['k'][num_k*i:num_k*(i+1)] = new_k_points
             new_data_idx['idx'][num_k*i:num_k*(i+1)] = k_idx
 
         log.debug('applied {} symm ops to {} k points', len(symm_ops), num_k)
         new_data_idx = remove_duplicates(new_data_idx)
 
+        if basis is not None:
+            new_data_idx['k'] = new_data_idx['k'] @ basis # from basis vectors to cartesian
+
         return new_data_idx
+
+
+class Hamiltonian(FPLOFile):
+    __fplo_file__ = ("+hamdata",)
+    _sections = ('RTG', 'lattice_vectors', 'centering', 'fullrelativistic', 'have_spin_info', 'nwan', 'nspin',
+           'wannames', 'wancenters')
+
+    @loads(*_sections, 'data_raw')
+    def load(self):
+        hamdata_file = open(self.filepath, 'r')
+
+        sections = iter(self._sections)
+        s = next(sections)
+        data = []
+        section_data = None
+
+        for i, line in enumerate(hamdata_file):
+            if line.startswith("{}:".format(s)):
+                data.append(section_data)
+                try:
+                    s = next(sections)
+                except StopIteration:
+                    s = 'spin'
+                section_data = ""
+            else:
+                section_data += line
+        data.append(section_data)
+
+        print(list(zip(self._sections, data[1:])))
+
+        return data[1:]
+
+    @cached_property
+    def matrix(self):
+        data_raw = self.data_raw
+
+        ftype = np.float32
+        dtype = []
+        dtype.append(('Tij', ftype, (3,)))
+        dtype.append(('Hij', np.csingle))
+
+        #matrix = np.zeros((nwan, nwan), dtype)
+
+
+        re.compile(r"(?<=Tij, Hij:\n)^(end Tij, Hij:\n)*(?=end Tij, Hij:\n)", flags=re.MULTILINE)
+
+
+        return "yolo"
+
+    @cached_property
+    def hoppings(self):
+        pass

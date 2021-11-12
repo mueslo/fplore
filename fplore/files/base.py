@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
 
 import os
-from six import with_metaclass
 from functools import wraps
 import re
 from collections import OrderedDict
@@ -150,7 +146,7 @@ class FPLOFileType(type):
             log.debug("{} has no explicit loader.", name)
 
 
-class FPLOFile(with_metaclass(FPLOFileType, object)):
+class FPLOFile(object, metaclass=FPLOFileType):
     registry = {'loaders': {}, 'loaders_re': OrderedDict()}
     is_loaded = False
     load_default = False

@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
 
 import re
+from itertools import zip_longest
 
 import numpy as np
-from six.moves import zip_longest
 
 from .base import FPLOFile, loads
 from ..logging import log

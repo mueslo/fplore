@@ -5,6 +5,7 @@ from mpl_toolkits.mplot3d import proj3d
 from matplotlib.collections import PolyCollection, LineCollection
 
 from .logging import log
+from .util import wigner_seitz_neighbours
 
 
 def projected_area(xyz, axis):
@@ -110,7 +111,7 @@ class Arrow3D(FancyArrowPatch):
 
     def draw(self, renderer):
         xs3d, ys3d, zs3d = self._verts3d
-        xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, renderer.M)
+        xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, self.axes.M)
         self.set_positions((xs[0], ys[0]), (xs[1], ys[1]))
         FancyArrowPatch.draw(self, renderer)
 
@@ -129,7 +130,7 @@ def plot_structure(run, ax):
     raise NotImplementedError
 
 
-def plot_bz(run, ax, vectors=True, k_points=False, use_symmetry=False,
+def plot_bz(run, ax, vectors='primitive', k_points=False, use_symmetry=False,
             high_symm_points=True):
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
     from matplotlib import colors as mcolors
@@ -146,10 +147,12 @@ def plot_bz(run, ax, vectors=True, k_points=False, use_symmetry=False,
         ax.plot(*points.T, marker='.', ls='',
                 label='sample k-point', ms=1)
 
-    if vectors:
-        for vec in run.primitive_lattice.reciprocal_lattice.matrix:
+    if vectors in ('primitive', 'conventional'):
+        lattice = run.primitive_lattice if vectors == 'primitive' else run.lattice
+        for vec, label in zip(lattice.reciprocal_lattice.matrix, 'abc'):
             ax.add_artist(Arrow3D(*zip((0, 0, 0), vec), mutation_scale=20,
                                   lw=3, arrowstyle="-|>", color="r"))
+            ax.text(*vec, s=label, color="r")
 
     ax.add_collection3d(
         Poly3DCollection(run.brillouin_zone, facecolors=cc('k'),
@@ -173,7 +176,7 @@ def plot_bz(run, ax, vectors=True, k_points=False, use_symmetry=False,
     ax.legend()
 
 
-def plot_bz_proj(run, ax, neighbours=True, rot=None, axis=-1, vectors=True,
+def plot_bz_proj(run, ax, neighbours=False, rot=None, axis=-1, vectors=True,
                  **kwargs):
     """Projects along given axis (default: last axis) after applying
     rotation matrix rot"""
@@ -188,11 +191,10 @@ def plot_bz_proj(run, ax, neighbours=True, rot=None, axis=-1, vectors=True,
     if not neighbours:
         neighbours = []
     elif neighbours is True:
-        neighbours = run.primitive_lattice.reciprocal_lattice.matrix
+        neighbours = wigner_seitz_neighbours(run.primitive_lattice.reciprocal_lattice)
     else:
         neighbours = np.array(neighbours)
-        neighbours = np.dot(
-            neighbours, run.primitive_lattice.reciprocal_lattice.matrix)
+        neighbours = neighbours @ run.primitive_lattice.reciprocal_lattice.matrix
 
     for facet in run.brillouin_zone:
         facet = np.stack(facet)

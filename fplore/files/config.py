@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from six import with_metaclass
 from pyparsing import (Word, Literal, Regex, Keyword, CaselessKeyword, Forward,
                        Group, OneOrMore, ZeroOrMore, alphas, nums, Suppress,
                        delimitedList, CharsNotIn, Empty, Optional, Or,
@@ -75,7 +74,7 @@ def walk(ns, declaration, value):
         yield ns, declaration.name, value
 
 
-class FPLOConfig(with_metaclass(FPLOFileType, object)):
+class FPLOConfig(object, metaclass=FPLOFileType):
     load_default = True
 
     @loads('_data')
