@@ -4,6 +4,7 @@ import numpy as np
 from scipy.ndimage import map_coordinates
 from scipy.spatial.distance import cdist
 from scipy.spatial import Delaunay, Voronoi
+import scipy.cluster.hierarchy as hcluster
 from scipy.constants import hbar, m_e, eV, angstrom, c
 from pymatgen.core import Lattice
 
@@ -25,38 +26,40 @@ def detect_grid(coordinates):
     :param coordinates:
     :return: (xs, ys, zs) axes of grid
     """
-    coord_round = coordinates.round(decimals=5)
-    xs = sorted(np.unique(coord_round[:, 0]))
-    ys = sorted(np.unique(coord_round[:, 1]))
-    zs = sorted(np.unique(coord_round[:, 2]))
+    dtype = coordinates.dtype
+    coord_round = coordinates.round(decimals=6)
+    tol = {'rtol': 0, 'atol': 1e-5}
+
+    axes = []
+
+    # clustering
+    for coord_dim in coord_round.T:
+        # pre-clustering (not really unique due to float + rounding ridges)
+        xs = np.unique(coord_dim)
+
+        # hierarchical clustering
+        xc = hcluster.fclusterdata(xs[:, np.newaxis], 1e-5, criterion="distance")
+        _, xu_idx = np.unique(xc, return_index=True)
+        xs = sorted(xs[xu_idx])
+
+        xs_step = np.diff(xs)
+        assert np.allclose(xs_step, np.median(xs_step), **tol), "xs_step"
+        axes.append(xs)
 
     # assumption: fraction coords were laid out on regular, rectangular
     #             grid parallel to axes
     # test:
-    dtype = coordinates.dtype
 
     g_min = np.min(coordinates, axis=0)
     g_max = np.max(coordinates, axis=0)
-    xs_grid = np.linspace(g_min[0], g_max[0], len(xs), dtype=dtype)
-    ys_grid = np.linspace(g_min[1], g_max[1], len(ys), dtype=dtype)
-    zs_grid = np.linspace(g_min[2], g_max[2], len(zs), dtype=dtype)
 
-    try:
-        tol = {'rtol': 0, 'atol': 1e-5}
-        assert np.allclose(xs, xs_grid, **tol)
-        assert np.allclose(ys, ys_grid, **tol)
-        assert np.allclose(zs, zs_grid, **tol)
-    except AssertionError:
-        log.debug('detected irregular k-sample grid')
-        log.debug("zip: {}", list(
-            zip(xs, xs_grid, np.isclose(xs, xs_grid, **tol))))
-        log.debug("zip: {}", list(
-            zip(ys, ys_grid, np.isclose(ys, ys_grid, **tol))))
-        log.debug("zip: {}", list(
-            zip(zs, zs_grid, np.isclose(zs, zs_grid, **tol))))
-        raise
+    axes_grid = []
+    for dim_min, dim_max, xs in zip(g_min.T, g_max.T, axes):
+        xs_grid = np.linspace(dim_min, dim_max, len(xs), dtype=dtype)
+        assert np.allclose(xs, xs_grid, **tol), "xs"
+        axes_grid.append(xs_grid)
 
-    return xs_grid, ys_grid, zs_grid
+    return axes_grid
 
 
 def find_basis(lattice_points):  
