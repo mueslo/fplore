@@ -7,18 +7,23 @@ Projected Fermi surface
 
 from fplore import FPLORun
 from fplore.plot import plot_bz_proj
+from fplore.util import cartesian_product
 import matplotlib.pyplot as plt
-from matplotlib import rc
-rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})
-rc('text', usetex=True)
+import numpy as np
 
-run = FPLORun("../example_data/fermisurf")
-# limit to bands close to fermi level to reduce memory usage
-bands = run.band.bands_at_energy(e=0., tol=5*0.04)
-selected_energy_data = run.band.data['e'][..., bands]
+#run = FPLORun("../example_data/fermisurf") #yrs TODO fix fermisurf run
+run = FPLORun("../example_data/yrs") #yrs
 
-axes, idx = run.band.reshape_gridded_data()
-data = selected_energy_data[idx]
+## limit to bands close to fermi level to reduce memory usage
+#bands = run.band.bands_at_energy(e=0., tol=5*0.04)
+#selected_energy_data = run.band.data['e'][..., bands]
+
+ip = run.band.interpolator
+axes = [np.linspace(-1, 1, 100)]*3
+k_sample = cartesian_product(*axes)
+data = ip(run.backfold_k(k_sample))
+
+data = data.reshape(tuple(map(len, axes)) + (-1,))
 
 # axis to project along, 0: x, 1: y, 2: z
 axis_to_project = 2

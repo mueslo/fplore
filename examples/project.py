@@ -22,7 +22,7 @@ point_3 = np.array((0, 0, 0.5))
 level_indices = run.band.bands_within(-0.25, 0.25)
 path = linspace_ng(point_1, point_2, point_3,
                    num=(50, 50))
-path = run.frac_to_k(path)
+path = run.fplo_to_k(path)
 
 axes, idx_grid = run.band.reshape_gridded_data()
 bands_to_sample = run.band.data['e'][..., level_indices]

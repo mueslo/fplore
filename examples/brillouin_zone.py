@@ -6,13 +6,9 @@ Brillouin zone
 """
 
 import matplotlib.pyplot as plt
-from matplotlib import rc
 
 from fplore import FPLORun
 from fplore.plot import plot_bz
-
-rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})
-rc('text', usetex=True)
 
 run = FPLORun("../example_data/fermi")
 
