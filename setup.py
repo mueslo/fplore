@@ -35,7 +35,7 @@ setup(
         "orderedattrdict~=1.5",
         "cached-property~=1.5",
         "logbook~=1.5",
-        "pyparsing==2.3.1",
+        "pyparsing~=2.4",
         "progressbar2~=3.38",
         "matplotlib~=3.4",
         "Pint~=0.17",
@@ -45,6 +45,7 @@ setup(
         'tests': ['tox'],
         'docs': [
             'sphinx~=1.8',
+            'docutils>=0.14,<0.18',
             'sphinx-gallery~=0.2',
             'Pillow',
         ],
