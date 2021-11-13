@@ -274,7 +274,6 @@ class Band(BandBase, FPLOFile):
 
         data = remove_duplicates(data)  # remove duplicate k values
 
-        #xs, ys, zs = axes = detect_grid(data['k'])
         basis = find_basis(data['k'])
         if basis is None:
             log.warning('No regular k grid detected')
@@ -298,8 +297,8 @@ class Band(BandBase, FPLOFile):
         shape = len(xs), len(ys), len(zs)
 
         k = data['k']
-        k_set = set(map(tuple, k.round(decimals=4)))
-        rgc_set = set(map(tuple, regular_grid_coords.round(decimals=4)))
+        k_set = set(map(tuple, k.round(decimals=4)))  # todo use ksamp lattice ijk
+        rgc_set = set(map(tuple, regular_grid_coords.round(decimals=4)))  # todo use ksamp lattice ijk
 
         if k_set == rgc_set:
             log.debug('detected regular k-sample grid of shape {}', shape)
@@ -335,21 +334,22 @@ class Band(BandBase, FPLOFile):
             new_data[:len(data)]['idx'] = data['idx']
 
             # add missing coordinates after
-            #mc_start = len(sorted_data) - len(regular_grid_coords)
             new_data[len(data):]['k'] = missing_coords.view('3f4')
 
             if missing_coords_strategy == 'nan':
                 new_data[len(data):]['idx'] = -1
             if missing_coords_strategy == 'backfold':
-                missing_coords = missing_coords.view('3f4')
-
                 # find exact matches
                 all_k = new_data['k'].copy()
                 all_k = (all_k @ self.run.primitive_lattice.reciprocal_lattice.inv_matrix + 1e-4) % 1 -1e-4 # k to reciprocal lattice vectors parallelepiped
                 all_k = all_k @ self.run.primitive_lattice.reciprocal_lattice.matrix
 
+                lattice_ijk = all_k @ lattice.inv_matrix
+                lattice_ijk_int = np.rint(lattice_ijk).astype(int)
+                assert np.abs(lattice_ijk_int-lattice_ijk).max() < 1e-4, 'detect_grid should have caught this'
+
                 k_u, idx_u, inv_u = np.unique(
-                    all_k.round(decimals=4), axis=0,
+                    lattice_ijk_int, axis=0,
                     return_index=True, return_inverse=True)
                     
                 # k_u: unique values of all_k
