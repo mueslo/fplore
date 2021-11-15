@@ -224,7 +224,7 @@ def pad_regular_sampling_lattice(k, ksamp_lattice=None):
 
 def backfold_k(A, b):
     """
-    Wraps an array of k-points b (shape (n_points, 3)) back to the first
+    Wraps an array of k-points b (shape (..., 3)) back to the first
     Brillouin zone given a reciprocal lattice matrix A.
 
     Note: Assumes that the lattice vectors contained in A correspond to the
@@ -240,7 +240,8 @@ def backfold_k(A, b):
     neighbours_k = np.array(neighbours) @ A
 
     # make a copy of `b' since we will be operating directly on it
-    b = np.copy(b)
+    b_shape = b.shape
+    b = np.copy(b).reshape((-1, 3))  # convert (..., 3) to (N, 3) shape
 
     # to reduce problems due to translational equivalence (borders of BZ)
     # we directly fold to the parallelepiped spanned by the reciprocal lattice basis
@@ -278,7 +279,7 @@ def backfold_k(A, b):
 
         if not np.any(idx_backfolded):
             log.debug("backfolding finished")
-            return b
+            return b.reshape(b_shape)
 
         # assign backfolded coordinates to output array
         b[idx_requires_backfolding] = backfolded
