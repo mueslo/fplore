@@ -16,7 +16,7 @@ jobs:
           #- MacOs
         py_version:
           - "3.9"
-          - "3.6"
+          - "3.7"
     steps:
       - name: Setup python for test ${{ matrix.py_version }}
         uses: actions/setup-python@v2

@@ -40,7 +40,7 @@ setup(
         "matplotlib~=3.4",
         "Pint~=0.17",
     ],
-    python_requires=">=3.6, <4",
+    python_requires=">=3.7, <4",
     extras_require={
         'tests': ['tox'],
         'docs': [
@@ -54,7 +54,7 @@ setup(
         "Operating System :: OS Independent",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Physics",
