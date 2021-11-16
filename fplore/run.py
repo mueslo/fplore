@@ -111,10 +111,8 @@ class FPLORun(object):
         return self.primitive_structure.lattice
 
     @property
-    def brillouin_zone(self, primitive=True):
-        if primitive:
-            return self.primitive_lattice.get_brillouin_zone()
-        return self.lattice.get_brillouin_zone()
+    def brillouin_zone(self):
+        return self.primitive_lattice.get_brillouin_zone()
 
     @cached_property
     def band(self):
@@ -154,15 +152,9 @@ class FPLORun(object):
             points[label] = coord @ self.primitive_lattice.reciprocal_lattice.matrix
         return points
 
-    def conventional_to_primitive_k(self, points):
-        A = self.lattice.reciprocal_lattice.matrix
-        Binv = self.primitive_lattice.reciprocal_lattice.inv_matrix
-        trans_mat = A @ Binv
-        return points @ trans_mat
-
     def backfold_k(self, points):
         return backfold_k(
-            self.primitive_lattice.reciprocal_lattice.matrix, points)
+            self.primitive_lattice.reciprocal_lattice, points)
 
     def fplo_to_k(self, fplo_coords):
         """

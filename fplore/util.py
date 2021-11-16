@@ -84,7 +84,6 @@ def find_basis(lattice_points):
         break
     else:
         raise Exception('Points do not span a volume')
-    
 
     try:
         # diff to grid
@@ -99,10 +98,10 @@ def find_basis(lattice_points):
         assert np.allclose(uniq_x, np.arange(uniq_x[0], uniq_x[-1]+1)), 'x'
         assert np.allclose(uniq_y, np.arange(uniq_y[0], uniq_y[-1]+1)), 'y'
         assert np.allclose(uniq_z, np.arange(uniq_z[0], uniq_z[-1]+1)), 'z'
-    except AssertionError as e:
-        log.debug(e)
-        return None
-    
+    except AssertionError as ae:
+        log.debug('basis {}\n{}', basis, ae)
+        raise ValueError('Could not determine basis from input lattice_points')
+
     return basis
 
 
@@ -222,10 +221,19 @@ def pad_regular_sampling_lattice(k, ksamp_lattice=None):
     return extra_k, extra_ijk"""
 
 
-def backfold_k(A, b):
+def backfold_k_parallelepiped(lattice, b, atol=1e-4):
+    b_shape = b.shape
+    b = b.reshape((-1, 3))  # convert (..., 3) to (N, 3) shape
+    b = ((b @ lattice.inv_matrix + atol) % 1 - atol) @ lattice.matrix
+    return b.reshape(b_shape)
+
+
+def backfold_k(lattice, b):
     """
-    Wraps an array of k-points b (shape (..., 3)) back to the first
+    Folds an array of k-points b (shape (..., 3)) back to the first
     Brillouin zone given a reciprocal lattice matrix A.
+
+    Translationally equivalent points will be mapped to the same actual point.
 
     Note: Assumes that the lattice vectors contained in A correspond to the
     shortest lattice vectors, i.e. that pairwise combinations of reciprocal
@@ -237,7 +245,12 @@ def backfold_k(A, b):
     # TODO make sure translationally equivalent points not present (brillouin zone boundary)
 
     # get adjacent BZ cell's Gamma point locations
-    neighbours_k = np.array(neighbours) @ A
+    assert idx_000 == 0
+    neighbours_k = np.array(neighbours) @ lattice.matrix
+
+    #would reduce memory usage:
+    #neighbours_k = np.array(list(wigner_seitz_neighbours(lattice))) @ lattice.matrix
+    #neighbours_k = np.vstack([[0, 0, 0], neighbours_k])
 
     # make a copy of `b' since we will be operating directly on it
     b_shape = b.shape
@@ -245,8 +258,7 @@ def backfold_k(A, b):
 
     # to reduce problems due to translational equivalence (borders of BZ)
     # we directly fold to the parallelepiped spanned by the reciprocal lattice basis
-    Ainv = np.linalg.inv(A)
-    b = ((b @ Ainv + 1e-4) % 1 - 1e-4) @ A
+    b = backfold_k_parallelepiped(lattice, b)
 
     # all coordinates need to be backfolded initially
     idx_requires_backfolding = np.arange(len(b))
@@ -260,11 +272,10 @@ def backfold_k(A, b):
         # calculate distances to nearest neighbour BZ origins
         dists = cdist(b[idx_requires_backfolding], neighbours_k)
 
-        # prevent float inaccuracies from folding on 1st BZ borders:
-        dists[:, idx_000] -= 1e-6
-
         # get the index of the BZ origin to which distance is minimal
-        bz_idx = np.argmin(dists, axis=1)
+        # bz_idx = np.argmin(dists, axis=1)  # naive, but does not work reliably w.r.t.
+        #                                      translational equivalence due to float inaccuracies
+        bz_idx = np.argmax(np.isclose(dists, np.min(dists, axis=1)[:, np.newaxis]), axis=1)  # argmax for first True
 
         # perform backfolding
         backfolded = b[idx_requires_backfolding] - neighbours_k[bz_idx]
