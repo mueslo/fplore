@@ -147,10 +147,11 @@ class FPLORun(object):
 
     @cached_property
     def high_symm_kpoints(self):
-        points = self.high_symm_kpoints_fractional
-        for label, coord in points.items():
-            points[label] = coord @ self.primitive_lattice.reciprocal_lattice.matrix
-        return points
+        points_frac = self.high_symm_kpoints_fractional
+        points_cart = {}
+        for label, coord in points_frac.items():
+            points_cart[label] = coord @ self.primitive_lattice.reciprocal_lattice.matrix
+        return points_cart
 
     def backfold_k(self, points):
         return backfold_k(
