@@ -389,12 +389,17 @@ class Band(BandBase, FPLOFile):
         return RegularGridInterpolator(axes, self.data[data_idx]['e'])
 
     @staticmethod
-    def smooth_overlap(e_k_3d, e=0., scale=0.02, axis=2):
+    def smooth_overlap(e_k_3d, e=0., scale=0.02, axis=2, weights=None):
+        log.debug('smooth_overlap {} {}', e_k_3d.shape, weights)
         e_k_3d[np.isnan(e_k_3d)] = -np.inf
         t1 = norm.pdf(e_k_3d, loc=e, scale=scale)
-        # todo interpolate axis 2
 
-        return np.sum(t1, axis=(axis, 3))
+        if weights is not None:
+            assert weights.ndim == 1 and len(weights) == e_k_3d.shape[axis]
+            weights_shape = [1]*e_k_3d.ndim
+            weights_shape[axis] = len(weights)
+            weights = np.ones_like(e_k_3d) * weights.reshape(weights_shape)
+        return np.average(t1, axis=(axis, -1), weights=weights)  # todo why sum tuple?
 
     @classmethod
     def apply_symmetry(cls, data, symm_ops, basis=None):
