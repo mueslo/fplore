@@ -3,6 +3,8 @@ import numpy as np
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
 from matplotlib.collections import PolyCollection, LineCollection
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from matplotlib import colors as mcolors
 
 from .logging import log
 from .util import wigner_seitz_neighbours
@@ -133,10 +135,17 @@ def plot_structure(run, ax):
     raise NotImplementedError
 
 
+def plot_wigner_seitz(ax, lattice, **kwargs):
+    ws_cell = lattice.get_wigner_seitz_cell()
+    ax.add_collection3d(Poly3DCollection(ws_cell, **kwargs))
+
+
+def _plot_bz(ax, lattice, **kwargs):
+    return plot_wigner_seitz(ax, lattice.reciprocal_lattice, **kwargs)
+
+
 def plot_bz(run, ax, vectors='primitive', k_points=False, use_symmetry=False,
-            high_symm_points=True):
-    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-    from matplotlib import colors as mcolors
+            high_symm_points=True, offset=(0, 0, 0)):  # todo or remove
 
     def cc(arg):
         return mcolors.to_rgba(arg, alpha=0.1)
@@ -207,14 +216,14 @@ def plot_bz_proj(run, ax, neighbours=False, rot=None, axis=-1, vectors=True,
             lines.extend((facet + nb))
 
     # project facets
-    P = rot[visible_axes]
-    lines = [np.dot(P, facet.T).T for facet in lines]
+    P = rot[:, visible_axes]
+    lines = [facet @ P for facet in lines]
 
     # lines = np.array(lines)
     # todo: remove duplicate lines
 
     if vectors:
-        x, y, z = P.T
+        x, y, z = P
 
         ax.arrow(0, 0, *x)
         ax.text(*x, '100')
