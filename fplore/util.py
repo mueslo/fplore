@@ -402,11 +402,11 @@ def k_arpes(theta, e_photon, phi_det, v0, e_bind=0., theta2=0., geometry=None):
     e_electron = e_photon - e_bind - phi_det
     k = np.array([angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta)/hbar,
          angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta2) * np.cos(theta)/hbar,  # noqa: E501
-         angstrom*np.sqrt(2 * m_e * (e_electron * (np.cos(theta)**2 * np.cos(theta2)**2) + v0))/hbar])  # noqa: E501
+         angstrom*np.sqrt(2 * m_e * (e_electron * (np.cos(theta)**2 * np.cos(theta2)**2) + v0))/hbar]).T  # noqa: E501
 
     if geometry:
         log.debug('using photon momentum correction')
-        k = (k - angstrom*(e_photon/(hbar*c))*geometry.photon_direction_sample_coords[:, np.newaxis])
+        k = (k - angstrom*(e_photon/(hbar*c))*geometry.photon_direction_sample_coords)
 
     return k
 

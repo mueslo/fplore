@@ -255,18 +255,16 @@ class Band(BandBase, FPLOFile):
 
         return dict(zip(lattice_ijk, data['idx']))  # map sampling lattice ijk to unique index
 
-    def reshape_gridded_data(self, apply_symmetries=True,
-                             missing_coords_strategy='backfold'):
+    def reshape_gridded_data(self, data='padded_symm', missing_coords_strategy='backfold'):
         """Tries to detect if the band data coordinates form a regular,
         rectangular grid, and returns the band data `indexes` reshaped to that
         grid."""
 
-        # todo fractional coords
-        # todo 2d reshape
-
-        if apply_symmetries:
+        if data in ('padded_symm', None):
             data = self.padded_symm_data
-        else:
+        elif data == 'symm':
+            data = self.symm_data
+        elif data in ('raw', 'data'):
             data = self._gen_band_data_array(len(self.data),
                                              k_coords=True, index=True)
             data['k'] = self.data['k']
@@ -374,19 +372,44 @@ class Band(BandBase, FPLOFile):
             assert np.array_equal(new_sorted_data['k'], regular_grid_coords)
             return axes, new_sorted_data.reshape(*shape)['idx']
 
-    @cached_property
-    def interpolator(self):
+    def get_interpolator(self, data=None, kind=None, bands=None):
         """Returns an interpolator that accepts sampling points of shape (..., 3)
         and returns energy levels of shape (..., n_e)"""
-        # TODO: get_interpolator with arguments, e.g. band selection
-        if self.reshape_gridded_data() is None:
-            log.warning('Preparing triangulated interpolation')
+
+        if data is None or data == 'padded_symm':
             data = self.padded_symm_data
-            data_e = self.data[data['idx']]['e']
+        elif data == 'symm':
+            data = self.symm_data
+        elif data in ('raw', 'data'):
+            data = self._gen_band_data_array(
+                len(self.data), k_coords=True, index=True)
+            data['k'] = self.data['k']
+            data['idx'] = np.arange(len(self.data))
+            data = remove_duplicates(data)
+
+        rgd = None
+        if kind is None:
+            rgd = self.reshape_gridded_data(data)
+            kind = 'tri' if rgd is None else 'rect'
+
+        if kind == 'rect':
+            if rgd is None:
+                rgd = self.reshape_gridded_data(data)
+
+            log.info('Rectilinear interpolation')
+            axes, data_idx = rgd
+            data_e = self.data[data_idx]['e'][..., bands]
+            return RegularGridInterpolator(axes, data_e)
+        elif kind == 'tri':
+            log.info('Triangulated interpolation')
+            data_e = self.data[data['idx']]['e'][..., bands]
             return LinearNDInterpolator(data['k'], data_e)
 
-        axes, data_idx = self.reshape_gridded_data()
-        return RegularGridInterpolator(axes, self.data[data_idx]['e'])
+
+    @cached_property
+    def interpolator(self):
+        """Default interpolator from Band.get_interpolator()"""
+        return self.get_interpolator()
 
     @staticmethod
     def smooth_overlap(e_k_3d, e=0., scale=0.02, axis=2, weights=None):
@@ -414,7 +437,7 @@ class Band(BandBase, FPLOFile):
 
         k_points = data['k']
         if basis is not None:
-            k_points = k_points @ np.linalg.inv(basis) # from cartesian to basis vectors
+            k_points = k_points @ np.linalg.inv(basis)  # from cartesian to basis vectors
         num_k = len(k_points)
 
         k_idx = np.arange(num_k)

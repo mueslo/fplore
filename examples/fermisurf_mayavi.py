@@ -8,7 +8,7 @@ Fermi surface
 from mayavi import mlab
 from fplore import FPLORun
 
-run = FPLORun("../example_data/fermisurf")
+run = FPLORun("../example_data/yrs")
 level_indices = run.band.bands_at_energy()
 energy_data = run.band.data['e'][..., level_indices]
 
