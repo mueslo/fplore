@@ -145,7 +145,10 @@ def _plot_bz(ax, lattice, **kwargs):
 
 
 def plot_bz(run, ax, vectors='primitive', k_points=False, use_symmetry=False,
-            high_symm_points=True, offset=(0, 0, 0)):  # todo or remove
+            high_symm_points=True, rot=None, offset=(0, 0, 0)):
+    if rot is None:
+        rot = np.eye(3)
+    offset = np.array(offset) @ run.primitive_lattice.reciprocal_lattice.matrix
 
     def cc(arg):
         return mcolors.to_rgba(arg, alpha=0.1)
@@ -156,22 +159,27 @@ def plot_bz(run, ax, vectors='primitive', k_points=False, use_symmetry=False,
         else:
             points = run.band.data['k']
 
+        points = (points + offset) @ rot
         ax.plot(*points.T, marker='.', ls='',
                 label='sample k-point', ms=1)
 
     if vectors in ('primitive', 'conventional'):
         lattice = run.primitive_lattice if vectors == 'primitive' else run.lattice
         for vec, label in zip(lattice.reciprocal_lattice.matrix, 'abc'):
-            ax.add_artist(Arrow3D(*zip((0, 0, 0), vec), mutation_scale=20,
+            vec = (vec + offset) @ rot
+            origin = offset @ rot
+            ax.add_artist(Arrow3D(*zip(origin, vec), mutation_scale=20,
                                   lw=3, arrowstyle="-|>", color="r"))
             ax.text(*vec, s=label, color="r")
 
+    facets = [[(coord + offset) @ rot for coord in facet] for facet in run.brillouin_zone]
     ax.add_collection3d(
-        Poly3DCollection(run.brillouin_zone, facecolors=cc('k'),
+        Poly3DCollection(facets, facecolors=cc('k'),
                          edgecolors='k'))
 
     if high_symm_points:
         points = run.high_symm_kpoints
+        points = {k: (v + offset) @ rot for k, v in points.items()}
         ax.plot(*zip(*points.values()), marker='o', ls='',
                 label='high symmetry point', color='k', ms='1')
 
