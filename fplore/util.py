@@ -19,6 +19,19 @@ def cartesian_product(*xs):
     return np.array(np.meshgrid(*xs, indexing='ij')).reshape(len(xs), -1).T
 
 
+def unique(coords, tol=1e-5):
+    # todo test, untested, copied from 1d code
+    # pre-clustering using exact uniqueness
+    coords = np.unique(coords)
+
+    # hierarchical clustering for uniqueness accounting for float inaccuracies
+    xc = hcluster.fclusterdata(coords[:, np.newaxis], tol, criterion="distance")
+    _, xu_idx = np.unique(xc, return_index=True)
+
+    coords = coords[xu_idx]
+    return coords
+
+
 def detect_grid(coordinates):
     """
     Check if sample points form regular, rectangular grid

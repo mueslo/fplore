@@ -33,7 +33,7 @@ setup(
         "scipy~=1.7",
         "pymatgen~=2021.3.9",
         "orderedattrdict~=1.5",
-        "cached-property~=1.5",
+        "cached-property~=1.5",  # to remove in python >= 3.8
         "logbook~=1.5",
         "pyparsing~=2.4",
         "progressbar2~=3.38",

@@ -80,6 +80,8 @@ ax3.plot(np.radians(theta), data, color='k', lw=0.5)
 ax3.set_ylabel(r'Binding energy $E-E_\mathrm{F}/\mathrm{eV}$')
 ax3.set_xlabel(r'Polar angle $\theta/\mathrm{deg}$')
 ax3.set_ylim(*energy_window)
+ax3.yaxis.tick_right()
+ax3.yaxis.set_label_position("right")
 
 plt.suptitle(r'Ag(111), $h\nu = {}\,\mathrm{{eV}}$'.format(e_photon))
 plt.show()
