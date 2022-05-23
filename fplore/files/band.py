@@ -8,7 +8,7 @@ from numpy.lib.recfunctions import merge_arrays
 import progressbar
 from scipy.stats.distributions import norm
 from scipy.interpolate import RegularGridInterpolator, LinearNDInterpolator
-from cached_property import cached_property
+from functools import cached_property
 from pymatgen.symmetry.groups import PointGroup
 from pymatgen.core import Lattice
 
@@ -69,7 +69,8 @@ class BandBase(object):
 
 
 class BandWeights(BandBase, FPLOFile):
-    __fplo_file__ = ("+bweights", "+bweights_kp", "+bweightslms", "+bwsum")
+    __fplo_file__ = ("+bweights", "+bweights_kp", "+bweightslms", "+bwsum",
+                     "+bweights_unfold")
 
     @loads('data', 'labels', disk_cache=True, mem_map={'data'})
     def load(self):

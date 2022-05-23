@@ -31,16 +31,15 @@ setup(
     install_requires=[
         "numpy~=1.21",
         "scipy~=1.7",
-        "pymatgen~=2021.3.9",
+        "pymatgen~=2022.5.19",
         "orderedattrdict~=1.5",
-        "cached-property~=1.5",  # to remove in python >= 3.8
         "logbook~=1.5",
         "pyparsing~=2.4",
         "progressbar2~=3.38",
         "matplotlib~=3.4,<3.6",
         "Pint~=0.17",
     ],
-    python_requires=">=3.7, <4",
+    python_requires=">=3.8, <4",
     extras_require={
         'tests': ['tox'],
         'docs': [
