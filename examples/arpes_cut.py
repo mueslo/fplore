@@ -19,14 +19,14 @@ surface_normal = [1, 1, 1]  # todo conventional to primitive
 
 thetacenter = 0
 thetawidth = 20
-theta = np.linspace(np.radians(thetacenter-thetawidth/2), np.radians(thetacenter+thetawidth/2), 200)
-theta2 = np.array([np.radians(0)])
+theta = np.linspace(np.deg2rad(thetacenter-thetawidth/2), np.deg2rad(thetacenter+thetawidth/2), 200)
+theta2 = np.array([np.deg2rad(0)])
 v0 = 8
 workfunc_analyzer = 3.8
 e_photon = 674.4
 
 R = rot_v1_v2(surface_normal, [0, 0, 1])
-phi = np.radians(15)
+phi = np.deg2rad(15)
 c, s = np.cos(phi), np.sin(phi)
 R = np.dot(np.array(((c, -s, 0), (s, c, 0), (0, 0, 1))), R)
 
@@ -76,7 +76,7 @@ print('Got interpolator. Doing interpolation...')
 data = ip(k_1bz)
 
 path = k_1bz
-ax3.plot(np.radians(theta), data, color='k', lw=0.5)
+ax3.plot(np.rad2deg(theta), data, color='k', lw=0.5)
 ax3.set_ylabel(r'Binding energy $E-E_\mathrm{F}/\mathrm{eV}$')
 ax3.set_xlabel(r'Polar angle $\theta/\mathrm{deg}$')
 ax3.set_ylim(*energy_window)
