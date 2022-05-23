@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import os
+from functools import cached_property
 
 import numpy as np
-from cached_property import cached_property
 from scipy.spatial.transform import Rotation
 from pymatgen.core import Structure, Lattice
 from pymatgen.symmetry.groups import SpaceGroup, sg_symbol_from_int_number

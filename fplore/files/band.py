@@ -2,13 +2,13 @@
 
 import re
 from itertools import zip_longest
+from functools import cached_property
 
 import numpy as np
 from numpy.lib.recfunctions import merge_arrays
 import progressbar
 from scipy.stats.distributions import norm
 from scipy.interpolate import RegularGridInterpolator, LinearNDInterpolator
-from functools import cached_property
 from pymatgen.symmetry.groups import PointGroup
 from pymatgen.core import Lattice
 
