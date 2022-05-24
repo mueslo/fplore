@@ -39,13 +39,12 @@ setup(
         "matplotlib~=3.4,<3.6",
         "Pint~=0.17",
     ],
-    python_requires=">=3.8, <4",
+    python_requires=">=3.8, <4",  # see also docs, test, ci config
     extras_require={
         'tests': ['tox'],
         'docs': [
-            'sphinx~=1.8',
-            'docutils>=0.14,<0.18',
-            'sphinx-gallery~=0.2',
+            'sphinx~=4.5',
+            'sphinx-gallery~=0.10',
             'Pillow',
         ],
     },
