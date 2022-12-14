@@ -25,6 +25,8 @@ setup(
     name='fplore',
     version=find_version("fplore", "__init__.py"),
     description="FPLO run evaluation",
+    long_description=open('README.md', 'r').read(),
+    long_description_content_type='text/markdown',
     license='GPLv3',
     url='https://github.com/mueslo/fplore',
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
