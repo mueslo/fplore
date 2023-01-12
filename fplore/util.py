@@ -93,7 +93,7 @@ def find_basis(lattice_points):
     for basis_candidate in itertools.permutations(smallest, 3):
         if np.linalg.matrix_rank(basis_candidate) < 3:
             continue
-        basis = np.array(basis_candidate) 
+        basis = np.array(basis_candidate, dtype=np.float64)
         break
     else:
         raise Exception('Points do not span a volume')
@@ -102,9 +102,22 @@ def find_basis(lattice_points):
         # diff to grid
         inv_basis = np.linalg.inv(basis)
         frac = lattice_points @ inv_basis
-        diff = frac - np.rint(frac)
+        frac_int = np.rint(frac)
+
+        # finetune basis for numerical accuracy
+        # solve matrix equation for best fit
+        # diff = frac - frac_int
+        # delta_basis, res, rank, s = np.linalg.lstsq(frac_int, diff @ basis)
+        basis, res2, rank2, s2 = np.linalg.lstsq(frac_int, lattice_points, rcond=None)
+
+        # diff to grid (finetuned basis)
+        inv_basis = np.linalg.inv(basis)
+        frac = lattice_points @ inv_basis
+        frac_int = np.rint(frac)
+        diff = frac - frac_int
+
         max_diff = np.linalg.norm(diff, axis=1).max()
-        assert max_diff < 1e-4, f'max_diff {max_diff}'
+        assert max_diff < 1e-4, f'max_diff {max_diff}'  # absolute error
 
         # assert grid has no major holes (e.g. basis too small)
         uniq_x, uniq_y, uniq_z = [np.unique(frac[:, i].round(decimals=4)) for i in range(3)]
