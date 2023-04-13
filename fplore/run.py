@@ -10,7 +10,7 @@ from pymatgen.symmetry.groups import SpaceGroup, sg_symbol_from_int_number
 from pymatgen.symmetry.bandstructure import HighSymmKpath
 
 from .logging import log
-from .util import backfold_k
+from .util import backfold_k, rot_v1_v2
 from .files.base import FPLOFile
 from .files import DOS
 
@@ -62,9 +62,29 @@ class FPLORun(object):
         return int(self["=.in"].structure_information.spacegroup.number)
 
     @property
+    def spacegroup_symbol(self):
+        return self["=.in"].structure_information.spacegroup.symbol.replace(" ", "").split("(")[0]
+
+    @property
+    def spacegroup_setting(self):
+        return self["=.in"].structure_information.spacegroup.setting
+
+    @property
     def spacegroup(self):
-        sg_symbol = sg_symbol_from_int_number(self.spacegroup_number)
-        return SpaceGroup(sg_symbol)
+        #sg_symbol = sg_symbol_from_int_number(self.spacegroup_number)
+        #setting = f":{self.spacegroup_setting}" if self.spacegroup_setting else ""
+        return SpaceGroup(self.spacegroup_symbol)
+
+    @property
+    def cellrotation(self):
+        """Reproduces the cell rotation matrix as present in XFPLO structure dialog."""
+        if self["=.in"].structure_information.cellrotation.active is False:
+            return np.eye(3)
+        Rmat = np.zeros((3, 3))
+        Rmat[0] = self["=.in"].structure_information.cellrotation.newx
+        Rmat[2] = self["=.in"].structure_information.cellrotation.newz
+        Rmat[1] = np.cross(Rmat[2], Rmat[0])
+        return Rmat
 
     @property
     def lattice(self):
@@ -80,10 +100,24 @@ class FPLORun(object):
 
         # translate to FPLO convention
         # see also: https://www.listserv.dfn.de/sympa/arc/fplo-users/2020-01/msg00002.html
-        if self.spacegroup.crystal_system in ('trigonal', 'hexagonal'):
+        if self.spacegroup.crystal_system in ('trigonal', 'hexagonal') and self.spacegroup_setting != "R":
             lattice = Lattice(lattice.matrix @ Rotation.from_rotvec([0, 0, 30], degrees=True).as_matrix())
+        elif self.spacegroup.crystal_system == 'trigonal' and self.spacegroup_setting == "R":
+            # pymatgen will put rhombohedral c axis to 001, a, b to ???
+            # but FPLO puts hexagonal c axis to 001 also in rhombohedral setting
+            conventional_c = lattice.matrix.sum(axis=0)/3
+            R_alignc = rot_v1_v2(v1=conventional_c, v2=np.array([0, 0, 1]))
+            # a projected onto xy plane should point along x
+            a = lattice.matrix[0] @ R_alignc.T
+            a_proj = a - (a @ np.array([0, 0, 1])) * np.array([0, 0, 1])
+            R_aligna = rot_v1_v2(v1=a_proj, v2=np.array([1, 0, 0]))
+            R = R_aligna @ R_alignc
+            lattice = Lattice(lattice.matrix @ R.T)
         elif self.spacegroup.crystal_system not in ('cubic', 'tetragonal', 'orthorhombic'):
             log.warning('untested lattice, crystal orientation may not be correct')
+
+        # apply cell rotation
+        lattice = Lattice(lattice.matrix @ self.cellrotation)
 
         return lattice
 
@@ -98,7 +132,7 @@ class FPLORun(object):
             coords.append([float(x) for x in wp.tau])
 
         structure = Structure.from_spacegroup(
-            self.spacegroup_number, self.lattice, elements, coords)
+            self.spacegroup_symbol, self.lattice, elements, coords)
 
         return structure
 
