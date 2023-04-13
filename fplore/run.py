@@ -6,7 +6,8 @@ from functools import cached_property
 import numpy as np
 from scipy.spatial.transform import Rotation
 from pymatgen.core import Structure, Lattice
-from pymatgen.symmetry.groups import SpaceGroup, sg_symbol_from_int_number
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+from pymatgen.symmetry.groups import SpaceGroup
 from pymatgen.symmetry.bandstructure import HighSymmKpath
 
 from .logging import log
@@ -135,6 +136,11 @@ class FPLORun(object):
             self.spacegroup_symbol, self.lattice, elements, coords)
 
         return structure
+
+    @property
+    def point_group_operations(self):
+        # returns the point group operations in cartesian coordinates
+        return SpacegroupAnalyzer(self.structure).get_point_group_operations(cartesian=True)
 
     @property
     def primitive_structure(self):

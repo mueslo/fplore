@@ -9,7 +9,6 @@ from numpy.lib.recfunctions import merge_arrays
 import progressbar
 from scipy.stats.distributions import norm
 from scipy.interpolate import RegularGridInterpolator, LinearNDInterpolator
-from pymatgen.symmetry.groups import PointGroup
 from pymatgen.core import Lattice
 
 from .base import FPLOFile, writeable, loads
@@ -199,20 +198,11 @@ class Band(BandBase, FPLOFile):
         """Returns the band data folded back to the first BZ and applies
         symmetry operations. Returns an index array to reduce memory usage."""
 
-        base_lattice = self.run.lattice
-        basis = None  # skip basis transformation for cartesian-aligned lattices
-        # for body/face centered cubic, symm_ops are in non-primitive simple cubic axes
-        
-        if self.run.spacegroup.crystal_system in ('trigonal', 'hexagonal'):
-            # symm ops are in primitive (rhombohedral) basis vectors (hkl)
-            base_lattice = self.run.primitive_lattice
-            basis = base_lattice.reciprocal_lattice.matrix
-        elif self.run.spacegroup.crystal_system not in ('cubic', 'tetragonal'):
-            log.warning('untested crystal system, k-space symmetrization may be wrong')
-        symm_ops = base_lattice.get_recp_symmetry_operation()
-        
+        # get symmetry operations from point group, in rotated cartesian coords
+        symm_ops = self.run.point_group_operations
+
         # apply symmetry operations from point group
-        data = self.apply_symmetry(self.data, symm_ops, basis=basis)
+        data = self.apply_symmetry(self.data, symm_ops)
         data['k'] = self.run.backfold_k(data['k'])
         data = remove_duplicates(data)
         return data
@@ -261,7 +251,9 @@ class Band(BandBase, FPLOFile):
         rectangular grid, and returns the band data `indexes` reshaped to that
         grid."""
 
-        if data in ('padded_symm', None):
+        if isinstance(data, np.ndarray):
+            pass
+        elif data in ('padded_symm', None):
             data = self.padded_symm_data
         elif data == 'symm':
             data = self.symm_data
@@ -446,7 +438,7 @@ class Band(BandBase, FPLOFile):
                                                 k_coords=True, index=True)
         for i, op in enumerate(symm_ops):
             rot = op.rotation_matrix
-            new_k_points = k_points @ rot
+            new_k_points = k_points @ rot.T    # .T important! == op.operate_multi(k_points)
             new_data_idx['k'][num_k*i:num_k*(i+1)] = new_k_points
             new_data_idx['idx'][num_k*i:num_k*(i+1)] = k_idx
 
