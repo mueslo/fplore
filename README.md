@@ -1,6 +1,6 @@
 [![](https://img.shields.io/github/release/mueslo/fplore.svg?style=flat-square)](https://github.com/mueslo/fplore/releases)
 [![](https://img.shields.io/pypi/v/fplore.svg?style=flat-square)](https://pypi.org/project/fplore/)
-[![](https://img.shields.io/github/workflow/status/mueslo/fplore/Run%20tests/master?style=flat-square)](https://github.com/mueslo/fplore/actions/workflows/tests.yml)
+[![](https://img.shields.io/github/actions/workflow/status/mueslo/fplore/tests.yml?branch=master&style=flat-square)](https://github.com/mueslo/fplore/actions/workflows/tests.yml)
 [![](https://img.shields.io/readthedocs/fplore.svg?style=flat-square)](https://fplore.readthedocs.io)
 [![](https://img.shields.io/github/license/mueslo/fplore.svg?style=flat-square)](https://github.com/mueslo/fplore/blob/master/LICENSE)
 
