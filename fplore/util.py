@@ -3,6 +3,7 @@ import itertools
 import numpy as np
 from scipy.ndimage import map_coordinates
 from scipy.spatial.distance import cdist
+from scipy.spatial.transform import Rotation
 from scipy.spatial import Delaunay, Voronoi
 import scipy.cluster.hierarchy as hcluster
 from scipy.constants import hbar, m_e, eV, angstrom, c
@@ -400,15 +401,36 @@ def generate_irreducible_wedge(lattice):
     raise NotImplementedError
 
 
+def get_perp_vector(v):
+    """
+    Returns an arbitrary normalized vector perpendicular to v
+    """
+    v = np.array(v)
+    if v[0] == 0:
+        return np.array([1, 0, 0])
+    elif v[1] == 0:
+        return np.array([0, 1, 0])
+    elif v[2] == 0:
+        return np.array([0, 0, 1])
+    else:
+        return np.array([v[1], -v[0], 0])/np.sqrt(v[0]**2 + v[1]**2)
+
+
 def rot_v1_v2(v1, v2):
     """Returns rotation matrix which rotates v1 onto v2"""
     v1 = np.array(v1)
     v2 = np.array(v2)
     v1 = v1 / np.linalg.norm(v1)
     v2 = v2 / np.linalg.norm(v2)
-    cp = np.cross(v1, v2)
+    cp = np.cross(v1, v2)  # sine * rot axis
     c = np.dot(v1, v2)  # cosine
 
+    if np.isclose(c, -1.0):
+        log.debug(f'v1={v1} and v2={v2} are antiparallel')
+        n = get_perp_vector(v1)
+        return Rotation.from_rotvec(n*np.pi).as_matrix()
+
+    # rodrigues rotation formula
     cpm = np.array([[0, -cp[2], cp[1]],
                    [cp[2], 0, -cp[0]],
                    [-cp[1], cp[0], 0]])
