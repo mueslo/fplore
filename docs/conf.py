@@ -16,6 +16,8 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
 
+from fplore import __version__ as fplore_version
+
 # -- Required data -----------------------------------------------------------
 
 example_data_dir = '../example_data'
@@ -49,13 +51,13 @@ except ImportError:
 # -- Project information -----------------------------------------------------
 
 project = 'fplore'
-copyright = '2018, Johannes Falke'
+copyright = '2018-2023, Johannes Falke'
 author = 'Johannes Falke'
 
 # The short X.Y version
-version = '0.3.1'
+version = fplore_version
 # The full version, including alpha/beta/rc tags
-release = '0.3.1a'
+release = fplore_version
 
 
 # -- General configuration ---------------------------------------------------
