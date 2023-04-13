@@ -40,6 +40,7 @@ class Run(FPLOFile):
 
 class Dens(FPLOConfig, FPLOFile):
     __fplo_file__ = "=.dens"
+    load_default = False
 
 
 class Points(FPLOFile):
@@ -75,6 +76,8 @@ class InFile(FPLOConfig, FPLOFile):
         self.run.version = (data.header.version.mainversion,
                             data.header.version.subversion)
         log.info("Detected FPLO run with version {}-{}", *self.run.version)
+        if float(self.run.version[0]) < 14:
+            log.warning("FPLO version <14 is not supported. Things may break.")
 
         return data
 

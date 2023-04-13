@@ -7,7 +7,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from pymatgen.core import Structure, Lattice
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-from pymatgen.symmetry.groups import SpaceGroup
+from pymatgen.symmetry.groups import SpaceGroup, sg_symbol_from_int_number
 from pymatgen.symmetry.bandstructure import HighSymmKpath
 
 from .logging import log
@@ -64,11 +64,22 @@ class FPLORun(object):
 
     @property
     def spacegroup_symbol(self):
-        return self["=.in"].structure_information.spacegroup.symbol.replace(" ", "").split("(")[0]
+        """Returns Hermann-Mauguin symbol including setting."""
+        symb = sg_symbol_from_int_number(self.spacegroup_number)
+        symb = symb[:-1] if symb.endswith('H') else symb
+        setting = None
+        if self.spacegroup_setting:
+            setting = ":" + self.spacegroup_setting
+        return f"{symb}{setting or ''}"
 
     @property
     def spacegroup_setting(self):
-        return self["=.in"].structure_information.spacegroup.setting
+        try:
+            setting = self["=.in"].structure_information.spacegroup.setting
+        except AttributeError:
+            setting = None
+
+        return setting if setting != "default" else None
 
     @property
     def spacegroup(self):
@@ -79,11 +90,16 @@ class FPLORun(object):
     @property
     def cellrotation(self):
         """Reproduces the cell rotation matrix as present in XFPLO structure dialog."""
-        if self["=.in"].structure_information.cellrotation.active is False:
+        try:
+            cellrotation = self["=.in"].structure_information.cellrotation
+        except AttributeError:
+            return np.eye(3)
+
+        if cellrotation.active is False:
             return np.eye(3)
         Rmat = np.zeros((3, 3))
-        Rmat[0] = self["=.in"].structure_information.cellrotation.newx
-        Rmat[2] = self["=.in"].structure_information.cellrotation.newz
+        Rmat[0] = cellrotation.newx
+        Rmat[2] = cellrotation.newz
         Rmat[1] = np.cross(Rmat[2], Rmat[0])
         return Rmat
 

@@ -68,8 +68,7 @@ class BandBase(object):
 
 
 class BandWeights(BandBase, FPLOFile):
-    __fplo_file__ = ("+bweights", "+bweights_kp", "+bweightslms", "+bwsum",
-                     "+bweights_unfold")
+    __fplo_file__ = re.compile(r"\+bw(eights(lms)?|sum)(_kp)?(_unfold)?")
 
     @loads('data', 'labels', disk_cache=True, mem_map={'data'})
     def load(self):
