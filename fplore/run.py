@@ -6,7 +6,6 @@ from functools import cached_property
 import numpy as np
 from scipy.spatial.transform import Rotation
 from pymatgen.core import Structure, Lattice
-from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.symmetry.groups import SpaceGroup, sg_symbol_from_int_number
 from pymatgen.symmetry.bandstructure import HighSymmKpath
 
@@ -153,10 +152,35 @@ class FPLORun(object):
 
         return structure
 
-    @property
+    @cached_property
+    def point_group_operations_frac(self):
+        """Returns the point group operations in real space lattice fractional coordinates.
+        Identity (E) is guaranteed to be first."""
+
+        # note: SpacegroupAnalyzer(self.structure).get_point_group_operations(cartesian=False) gives the actual
+        # symmetry and should typically give the same results, but sometimes you might intentionally be running
+        # in a lower symmetry setting than the actual symmetry, so we use the declared symmetry instead.
+
+        seen = set()
+        pg_ops = [op.rotation_matrix for op in self.spacegroup.symmetry_ops
+                  if not op.rotation_matrix.tobytes() in seen
+                  and seen.add(op.rotation_matrix.tobytes()) is None]  # for uniqueness
+
+        return sorted(pg_ops, key=lambda x: np.linalg.norm(x - np.eye(3)))  # ensure identity is first
+
+    @cached_property
     def point_group_operations(self):
-        # returns the point group operations in cartesian coordinates
-        return SpacegroupAnalyzer(self.structure).get_point_group_operations(cartesian=True)
+        """Returns the point group operations in cartesian coordinates.
+        Identity (E) is guaranteed to be first."""
+
+        pg_ops_cart = []
+        for op_frac in self.point_group_operations_frac:
+            op = self.lattice.matrix.T @ op_frac @ self.lattice.inv_matrix.T  # fractional -> cartesian
+            op[abs(op) < 1e-12] = 0  # nearly zero
+            nearly_1 = (abs(abs(op) - 1) < 1e-12)  # nearly +-1
+            op[nearly_1] = np.rint(op[nearly_1])
+            pg_ops_cart.append(op)
+        return pg_ops_cart
 
     @property
     def primitive_structure(self):

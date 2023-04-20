@@ -436,8 +436,7 @@ class Band(BandBase, FPLOFile):
         new_data_idx = cls._gen_band_data_array(num_k*len(symm_ops),
                                                 k_coords=True, index=True)
         for i, op in enumerate(symm_ops):
-            rot = op.rotation_matrix
-            new_k_points = k_points @ rot.T    # .T important! == op.operate_multi(k_points)
+            new_k_points = k_points @ op.T    # .T since we are multiplying from the right
             new_data_idx['k'][num_k*i:num_k*(i+1)] = new_k_points
             new_data_idx['idx'][num_k*i:num_k*(i+1)] = k_idx
 
