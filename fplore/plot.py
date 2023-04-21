@@ -193,7 +193,6 @@ def plot_bz(run, ax, vectors='primitive', k_points=False, use_symmetry=False,
     ax.set_xlabel('$k_x$')
     ax.set_ylabel('$k_y$')
     ax.set_zlabel('$k_z$')
-    ax.legend()
 
 
 def plot_bz_proj(run, ax, neighbours=False, rot=None, axis=-1, vectors=True,
