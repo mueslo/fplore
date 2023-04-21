@@ -404,17 +404,24 @@ class Band(BandBase, FPLOFile):
         return self.get_interpolator()
 
     @staticmethod
-    def smooth_overlap(e_k_3d, e=0., scale=0.02, axis=2, weights=None):
-        log.debug('smooth_overlap {} {}', e_k_3d.shape, weights)
-        e_k_3d[np.isnan(e_k_3d)] = -np.inf
-        t1 = norm.pdf(e_k_3d, loc=e, scale=scale)
+    def smooth_overlap(arr_e, e=0., scale=0.02, axis=2, weights=None):
+        """
+        Calculates the Gaussian overlap of the energy levels in arr_e with the Fermi level or desired energy level `e`.
+        Useful for generating smooth Fermi surface pseudospectra.
+
+        :param arr_e: array containing energy levels of shape (..., n_e)
+        :param e: energy level to calculate overlap for (default: 0)
+        :param scale: scale of the gaussian (default: 0.02)
+        :param axis: extra axis or tuple of axes along which the energy levels are summed (default: -1)
+        :param weights: weights for each energy level, should have shape compatible with e_k_3d (default: None)
+        """
+        arr_e[np.isnan(arr_e)] = -np.inf
+        t1 = norm.pdf(arr_e, loc=e, scale=scale)
+        sum_axis = (-1,) if axis is None else (axis, -1)
 
         if weights is not None:
-            assert weights.ndim == 1 and len(weights) == e_k_3d.shape[axis]
-            weights_shape = [1]*e_k_3d.ndim
-            weights_shape[axis] = len(weights)
-            weights = np.ones_like(e_k_3d) * weights.reshape(weights_shape)
-        return np.average(t1, axis=(axis, -1), weights=weights)  # todo why sum tuple?
+            weights = np.ones_like(arr_e) * weights
+        return np.average(t1, axis=sum_axis, weights=weights)
 
     @classmethod
     def apply_symmetry(cls, data, symm_ops, basis=None):

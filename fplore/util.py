@@ -76,10 +76,12 @@ def detect_grid(coordinates):
     return axes_grid
 
 
-def find_basis(lattice_points):  
-    basis = []
+def find_basis(lattice_points):
+    """Given lattice points of shape (N, 3), this function attempts to find a basis"""
+
+    min_length = 1e-6
     dists = np.linalg.norm(lattice_points, axis=1)
-    valid = (dists != 0)
+    valid = (dists > min_length)
     lattice_points = lattice_points[valid]
     dists = dists[valid]
     
