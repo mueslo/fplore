@@ -12,7 +12,8 @@ from pymatgen.core import Lattice
 from .logging import log
 
 nbs = (0, 1, -1)
-neighbours = list(itertools.product(nbs, nbs, nbs))
+neighbours = list(itertools.product(nbs, nbs, nbs))  # 27
+pe_neighbours = list(itertools.product(nbs[:-1], nbs[:-1], nbs[:-1]))  # 8
 idx_000 = neighbours.index((0, 0, 0))
 
 def cartesian_product(*xs):
@@ -251,12 +252,12 @@ def pad_regular_sampling_lattice(k, ksamp_lattice=None):
 
 
 def backfold_k_parallelepiped(lattice, b, atol=1e-4):
-    b_shape = b.shape
-    b = b.reshape((-1, 3))  # convert (..., 3) to (N, 3) shape
-    b = ((b @ lattice.inv_matrix + atol) % 1 - atol) @ lattice.matrix
-    return b.reshape(b_shape)
+    """Fold an array of k-points b (shape (..., 3)) back to the parallelepiped
+    spanned by the lattice vectors."""
+    return ((b @ lattice.inv_matrix + atol) % 1 - atol) @ lattice.matrix
 
 
+BOUNDARY_ATOL = 1e-6  # for BZ/backfolding
 def backfold_k(lattice, b):
     """
     Folds an array of k-points b (shape (..., 3)) back to the first
@@ -272,25 +273,25 @@ def backfold_k(lattice, b):
 
     # TODO handle points on borders of BZ more elegantly
     # TODO make sure translationally equivalent points not present (brillouin zone boundary)
+    # TODO drop nans from input and emit warning, and add them back in output
+    # TODO consider rewriting in cython/pyo3
 
-    # get adjacent BZ cell's Gamma point locations
     assert idx_000 == 0
-    neighbours_k = np.array(neighbours) @ lattice.matrix
-
-    #would reduce memory usage:
-    #neighbours_k = np.array(list(wigner_seitz_neighbours(lattice))) @ lattice.matrix
-    #neighbours_k = np.vstack([[0, 0, 0], neighbours_k])
-
-    # make a copy of `b' since we will be operating directly on it
-    b_shape = b.shape
-    b = np.copy(b).reshape((-1, 3))  # convert (..., 3) to (N, 3) shape
+    # get adjacent BZ cells and all parallelepiped corners
+    neighbours_frac = wigner_seitz_neighbours(lattice) | set(pe_neighbours[1:])
+    neighbours_k = np.array(list(neighbours_frac)) @ lattice.matrix
+    neighbours_k = np.vstack([[0, 0, 0], neighbours_k])  # we rely on idx_000 being 0
+    log.debug("#neighbours_k: {}", len(neighbours_k))
 
     # to reduce problems due to translational equivalence (borders of BZ)
     # we directly fold to the parallelepiped spanned by the reciprocal lattice basis
     b = backfold_k_parallelepiped(lattice, b)
 
+    b_shape = b.shape
+    b = b.reshape(-1, 3)  # for some reason it is faster WITH a reshape
+
     # all coordinates need to be backfolded initially
-    idx_requires_backfolding = np.arange(len(b))
+    idx_requires_backfolding = np.ones(b.shape[:-1], dtype=bool)  # boolean indexing
     i = 0
     while True:
         i += 1
@@ -299,25 +300,23 @@ def backfold_k(lattice, b):
         log.debug('backfolding... (round {})', i)
 
         # calculate distances to nearest neighbour BZ origins
-        dists = cdist(b[idx_requires_backfolding], neighbours_k)
+        dists = cdist(b[idx_requires_backfolding], neighbours_k, metric='sqeuclidean')
 
         # get the index of the BZ origin to which distance is minimal
-        # bz_idx = np.argmin(dists, axis=1)  # naive, but does not work reliably w.r.t.
-        #                                      translational equivalence due to float inaccuracies
-        bz_idx = np.argmax(np.isclose(dists, np.min(dists, axis=1)[:, np.newaxis]), axis=1)  # argmax for first True
+        dists[:, idx_000] -= BOUNDARY_ATOL
+        bz_idx = np.argmin(dists, axis=1)
 
         # perform backfolding
         backfolded = b[idx_requires_backfolding] - neighbours_k[bz_idx]
 
         # get indices of points that were backfolded (boolean index array)
-        idx_backfolded = np.any(b[idx_requires_backfolding] != backfolded,
-                                axis=1)
+        idx_backfolded = (bz_idx != idx_000)
 
         log.debug('backfolded {} of {} coordinates',
-                  np.sum(idx_backfolded),
+                  idx_backfolded.sum(),
                   len(idx_requires_backfolding))
 
-        if not np.any(idx_backfolded):
+        if not idx_backfolded.any():
             log.debug("backfolding finished")
             return b.reshape(b_shape)
 
@@ -325,8 +324,8 @@ def backfold_k(lattice, b):
         b[idx_requires_backfolding] = backfolded
 
         # only those coordinates which were changed in this round need to be
-        # backfolded again
-        idx_requires_backfolding = idx_requires_backfolding[idx_backfolded]
+        # backfolded again in the next round
+        idx_requires_backfolding[idx_requires_backfolding] = idx_backfolded
 
 
 def remove_duplicates(data):
@@ -379,8 +378,7 @@ def in_first_bz(p, reciprocal_lattice):
     dists = cdist(p, neighbours_k)
 
     # prevent float inaccuracies from folding on 1st BZ borders:
-    dists[:, idx_000] -= 1e-6
-
+    dists[:, idx_000] -= BOUNDARY_ATOL
     return np.argmin(dists, axis=1) == idx_000
 
 
