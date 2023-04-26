@@ -263,7 +263,8 @@ def backfold_k(lattice, b):
     Folds an array of k-points b (shape (..., 3)) back to the first
     Brillouin zone given a reciprocal lattice matrix A.
 
-    Translationally equivalent points will be mapped to the same actual point.
+    Guarantees that translationally equivalent points will be mapped to
+    the same output point.
 
     Note: Assumes that the lattice vectors contained in A correspond to the
     shortest lattice vectors, i.e. that pairwise combinations of reciprocal
@@ -300,11 +301,12 @@ def backfold_k(lattice, b):
         log.debug('backfolding... (round {})', i)
 
         # calculate distances to nearest neighbour BZ origins
-        dists = cdist(b[idx_requires_backfolding], neighbours_k, metric='sqeuclidean')
+        dists = cdist(b[idx_requires_backfolding], neighbours_k)
 
         # get the index of the BZ origin to which distance is minimal
-        dists[:, idx_000] -= BOUNDARY_ATOL
-        bz_idx = np.argmin(dists, axis=1)
+        # if multiple dists are minimal, choose the one with the lowest index
+        # (this is important for translational equivalence stability w.r.t numerical error)
+        bz_idx = np.argmax((dists - dists.min(axis=1)[:, np.newaxis]) < BOUNDARY_ATOL, axis=1)
 
         # perform backfolding
         backfolded = b[idx_requires_backfolding] - neighbours_k[bz_idx]

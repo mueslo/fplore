@@ -65,7 +65,7 @@ def boundary_points(directions, neighbours_k):
 class TestBackfold:
     @pytest_cases.parametrize("points", [gamma_point, boundary_points])
     def test_translational_invariance(self, reciprocal_lattice, points, neighbours_k):
-        # create translationally equivalent points
+        # create n_t translationally equivalent points, shape (n_t, n, 3)
         points_t = points + np.vstack([[0, 0, 0], neighbours_k])[:, np.newaxis, :]
 
         bf = backfold_k(reciprocal_lattice, points_t)  # todo matrix remove for testing
