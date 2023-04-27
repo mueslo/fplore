@@ -10,6 +10,7 @@ from scipy.constants import hbar, m_e, eV, angstrom, c
 from pymatgen.core import Lattice
 
 from .logging import log
+from .fast_util import backfold_k_inplace
 
 nbs = (0, 1, -1)
 neighbours = list(itertools.product(nbs, nbs, nbs))  # 27
@@ -258,25 +259,7 @@ def backfold_k_parallelepiped(lattice, b, atol=1e-4):
 
 
 BOUNDARY_ATOL = 1e-6  # for BZ/backfolding
-def backfold_k(lattice, b):
-    """
-    Folds an array of k-points b (shape (..., 3)) back to the first
-    Brillouin zone given a reciprocal lattice matrix A.
-
-    Guarantees that translationally equivalent points will be mapped to
-    the same output point.
-
-    Note: Assumes that the lattice vectors contained in A correspond to the
-    shortest lattice vectors, i.e. that pairwise combinations of reciprocal
-    lattice vectors in A and their negatives cover all the nearest neighbours
-    of the BZ.
-    """
-
-    # TODO handle points on borders of BZ more elegantly
-    # TODO make sure translationally equivalent points not present (brillouin zone boundary)
-    # TODO drop nans from input and emit warning, and add them back in output
-    # TODO consider rewriting in cython/pyo3
-
+def backfold_k_old(lattice, b):
     assert idx_000 == 0
     # get adjacent BZ cells and all parallelepiped corners
     neighbours_frac = wigner_seitz_neighbours(lattice) | set(pe_neighbours[1:])
@@ -328,6 +311,41 @@ def backfold_k(lattice, b):
         # only those coordinates which were changed in this round need to be
         # backfolded again in the next round
         idx_requires_backfolding[idx_requires_backfolding] = idx_backfolded
+
+
+def backfold_k(lattice, b):
+    """
+    Folds an array of k-points b (shape (..., 3)) back to the first
+    Brillouin zone given a reciprocal lattice matrix A.
+
+    Guarantees that translationally equivalent points will be mapped to
+    the same output point.
+
+    Note: Assumes that the lattice vectors contained in A correspond to the
+    shortest lattice vectors, i.e. that pairwise combinations of reciprocal
+    lattice vectors in A and their negatives cover all the nearest neighbours
+    of the BZ.
+    """
+
+    # TODO handle points on borders of BZ more elegantly
+    # TODO make sure translationally equivalent points not present (brillouin zone boundary)
+    # TODO drop nans from input and emit warning, and add them back in output
+
+    assert idx_000 == 0
+    # get adjacent BZ cells and all parallelepiped corners
+    neighbours_frac = wigner_seitz_neighbours(lattice) | set(pe_neighbours[1:])
+    neighbours_k = np.array(list(neighbours_frac)) @ lattice.matrix
+    neighbours_k = np.vstack([[0, 0, 0], neighbours_k])  # we rely on idx_000 being 0
+    log.debug("#neighbours_k: {}", len(neighbours_k))
+
+    # to reduce problems due to translational equivalence (borders of BZ)
+    # we directly fold to the parallelepiped spanned by the reciprocal lattice basis
+    b = backfold_k_parallelepiped(lattice, b, 0.5+BOUNDARY_ATOL)
+
+    b_shape = b.shape
+    b = b.reshape(-1, 3)
+    backfold_k_inplace(neighbours_k, b)
+    return b.reshape(b_shape)
 
 
 def remove_duplicates(data):

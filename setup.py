@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 import codecs
 import re
 from os import path
@@ -29,6 +29,7 @@ setup(
     long_description_content_type='text/markdown',
     license='GPLv3',
     url='https://github.com/mueslo/fplore',
+    ext_modules=[Extension('fplore.fast_util', sources=['fplore/fast_util.pyx']),],
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     install_requires=[
         "numpy~=1.21",
@@ -50,6 +51,7 @@ setup(
             'Pillow',
         ],
     },
+    setup_requires=['cython'],
     classifiers=[
         "Operating System :: OS Independent",
         "Programming Language :: Python",
