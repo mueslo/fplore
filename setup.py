@@ -39,7 +39,7 @@ setup(
         "logbook~=1.5",
         "pyparsing~=2.4",
         "progressbar2~=3.38",
-        "matplotlib~=3.4,<3.6",
+        "matplotlib~=3.4",
         "Pint~=0.17",
     ],
     python_requires=">=3.8, <4",  # see also docs, test, ci config

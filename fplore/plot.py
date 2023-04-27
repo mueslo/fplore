@@ -111,12 +111,13 @@ class Arrow3D(FancyArrowPatch):
         FancyArrowPatch.__init__(self, (0, 0), (0, 0), *args, **kwargs)
         self._verts3d = xs, ys, zs
 
-    def do_3d_projection(self, renderer):  # renderer arg will be removed in matplotlib==3.6
+    def do_3d_projection(self, renderer=None):
         xs3d, ys3d, zs3d = self._verts3d
         xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, self.axes.M)
         self.set_positions((xs[0], ys[0]), (xs[1], ys[1]))
-        FancyArrowPatch.draw(self, renderer)
-        return 0
+        if renderer is not None:  # matplotlib<3.6
+            FancyArrowPatch.draw(self, renderer)
+        return min(zs)
 
     draw = do_3d_projection  # for matplotlib<3.5
 
