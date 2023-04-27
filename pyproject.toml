@@ -60,5 +60,5 @@ docs = [
 include-package-data = false
 
 [tool.setuptools.packages.find]
-exclude = ["contrib", "docs", "tests"]
-namespaces = false
+where = ["src"]  # list of folders that contain the packages (["."] by default)
+namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
