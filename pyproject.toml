@@ -49,6 +49,11 @@ content-type = "text/markdown"
 tests = [
     "tox",
 ]
+tests-core = [
+    "pytest",
+    "pytest-cases",
+    "pytest-logbook",
+]
 docs = [
     "sphinx~=7.0",
     "sphinx-gallery~=0.13",
