@@ -13,10 +13,9 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import sys
-sys.path.insert(0, os.path.abspath('..'))
 
-from fplore import __version__ as fplore_version
+from importlib.metadata import version
+fplore_version = version('fplore')
 
 # -- Required data -----------------------------------------------------------
 
