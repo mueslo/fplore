@@ -51,6 +51,13 @@ fplore.util module
     :undoc-members:
     :show-inheritance:
 
+fplore.fast_util module
+-----------------------
+
+.. automodule:: fplore.fast_util
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 Module contents
 ---------------
