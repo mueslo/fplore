@@ -7,10 +7,10 @@ ARPES k-space cut
 
 import numpy as np
 from fplore import FPLORun
-from fplore.util import k_arpes, rot_v1_v2, sample_e
+from fplore.arpes import k_arpes
+from fplore.util import rot_v1_v2, sample_e
 from fplore.plot import plot_bz_proj
 import matplotlib.pyplot as plt
-from matplotlib import rc
 import matplotlib.gridspec as gridspec
 
 run = FPLORun("../example_data/Ag")

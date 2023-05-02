@@ -6,7 +6,6 @@ from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation
 from scipy.spatial import Delaunay, Voronoi
 import scipy.cluster.hierarchy as hcluster
-from scipy.constants import hbar, m_e, eV, angstrom, c
 from pymatgen.core import Lattice
 
 from .logging import log
@@ -458,24 +457,19 @@ def rot_v1_v2(v1, v2):
     return np.eye(3) + cpm + np.dot(cpm, cpm) * 1 / (1 + c)
 
 
-def k_arpes(theta, e_photon, phi_det, v0, e_bind=0., theta2=0., geometry=None):
-    """Returns the parallel and perpendicular components of electronic plane
-    wave exiting a crystal with inner potential `v0` at angle `theta` with an
-    energy of `e_electron`"""
+def project(v, t):
+    """Project vector v onto target vector t"""
+    v = np.array(v)
+    t = np.array(t)
+    return np.dot(v, t) / np.dot(t, t) * t
 
-    e_photon *= eV
-    phi_det *= eV
-    e_bind *= eV
-    v0 *= eV
-    e_electron = e_photon - e_bind - phi_det
-    k = np.array([angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta)/hbar,
-         angstrom*np.sqrt(2 * m_e * e_electron) * np.sin(theta2) * np.cos(theta)/hbar,  # noqa: E501
-         angstrom*np.sqrt(2 * m_e * (e_electron * (np.cos(theta)**2 * np.cos(theta2)**2) + v0))/hbar]).T  # noqa: E501
+def project_plane(v, n):
+    """Project vector v onto plane with normal n"""
+    v = np.array(v)
+    n = np.array(n)
+    return v - project(v, n)
 
-    if geometry:
-        log.debug('using photon momentum correction')
-        k = (k - angstrom*(e_photon/(hbar*c))*geometry.photon_direction_sample_coords)
-
-    return k
-
-#k_arpes = np.vectorize(k_arpes, signature='(1),(1),(1),(1),(1?),(1?),(1?)->(3)')
+def normalized(v):
+    """Returns normalized v"""
+    v = np.array(v)
+    return v / np.linalg.norm(v)
