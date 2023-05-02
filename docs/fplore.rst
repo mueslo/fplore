@@ -11,6 +11,14 @@ Subpackages
 Submodules
 ----------
 
+fplore.arpes module
+---------------------
+
+.. automodule:: fplore.arpes
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 fplore.logging module
 ---------------------
 

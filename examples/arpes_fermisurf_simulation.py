@@ -1,7 +1,7 @@
 """
-=================
+==================================
 ARPES Fermi surface map simulation
-=================
+==================================
 
 """
 
@@ -9,9 +9,9 @@ import numpy as np
 from scipy.stats import norm
 
 from fplore import FPLORun
-from fplore.util import k_arpes, rot_v1_v2
+from fplore.util import rot_v1_v2
 from fplore.plot import plot_bz
-from fplore.arpes import ARPESGeometry
+from fplore.arpes import k_arpes, TPS45A1
 import matplotlib.pyplot as plt
 
 kz_broadening = True
@@ -49,7 +49,7 @@ workfunc_analyzer = 3.8
 e_photon = 665
 
 if kz_broadening:
-    imfp = 10  # angstroms
+    imfp = 10  # angstroms, see https://doi.org/10.1384/jsa.9.285
     Delta_kz = 1 / imfp  # standard deviation in reciprocal angstroms (∆o)² = <o²> - <o>²
     surface_normal = R @ analyzer_direction  # perfectly flat surface perpendicular to analyzer direction
     n_kz = 47  # 13
@@ -65,11 +65,7 @@ else:
     kz_deltas = 0
     weights = 1
 
-ag = ARPESGeometry(angles_photon=(-60 * np.pi / 180, 0),
-                   angles_sample=(0, 0),
-                   slit_direction=(0, 0, 1))
-
-k_p_mean = k_arpes(theta=theta, e_photon=e_photon, phi_det=workfunc_analyzer, v0=v0, theta2=theta2, geometry=ag)
+k_p_mean = k_arpes(theta=theta, e_photon=e_photon, phi_det=workfunc_analyzer, v0=v0, theta2=theta2, geometry=TPS45A1)
 if not kz_curvature:
     k_p_mean[:, :, 2] = k_p_mean[:, :, 2].max()
 k_p = k_p_mean[:, :, np.newaxis] + kz_deltas  # add kz broadening sample points in 3rd dimension
