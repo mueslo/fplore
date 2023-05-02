@@ -38,7 +38,6 @@ dependencies = [
     "pyparsing~=2.4",
     "progressbar2~=3.38",
     "matplotlib~=3.4",
-    "Pint~=0.17",
 ]
 dynamic = ["version"]
 
@@ -51,8 +50,8 @@ tests = [
     "tox",
 ]
 docs = [
-    "sphinx~=4.5",
-    "sphinx-gallery~=0.10",
+    "sphinx~=7.0",
+    "sphinx-gallery~=0.13",
     "Pillow",
 ]
 
