@@ -1,4 +1,4 @@
-name: Build wheels
+name: Build source and wheels and publish to PyPI
 
 on:  # uses a token, so never run on untrusted input (e.g. PRs)
   release:
@@ -33,6 +33,7 @@ jobs:
       - name: Store artifacts
         uses: actions/upload-artifact@v3
         with:
+          name: dists
           path: dist/*.tar.gz
 
   build_wheels:
@@ -78,7 +79,7 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: wheels
+          name: dists
           path: wheelhouse/*.whl
           if-no-files-found: error
 
@@ -93,6 +94,7 @@ jobs:
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:
+        name: dists
         path: dist
 
     - name: Publish package
