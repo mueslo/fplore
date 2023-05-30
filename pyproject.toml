@@ -35,7 +35,7 @@ dependencies = [
     "pymatgen~=2022.5.19",
     "orderedattrdict~=1.5",
     "logbook~=1.5",
-    "pyparsing~=2.4",
+    "pyparsing~=3.0",
     "progressbar2~=3.38",
     "matplotlib~=3.4",
 ]

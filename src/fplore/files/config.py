@@ -54,16 +54,16 @@ CONFIG.ignore(COMMENT)
 def walk(ns, declaration, value):
     # walks through declaration tokens recursively and constructs namespace
     if declaration.type[0] == 'struct':
-        if declaration.size:
+        if declaration.size:  # for struct arrays
             subdecs_vals = []
             for i, v in enumerate(value):
                 fake_declaration = declaration.copy()
-                fake_declaration.name = i
-                fake_declaration.size = 0  # prevents infinite recursion
+                fake_declaration['name'] = i  # for list indexing
+                fake_declaration['size'] = 0  # prevents infinite recursion
                 subdecs_vals.append((fake_declaration, v))
 
             ns[declaration.name] = [None] * len(value)
-        else:
+        else:  # scalar structs
             ns[declaration.name] = AttrDict()
             subdecs_vals = zip(declaration.members, value)
 
