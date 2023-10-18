@@ -6,11 +6,11 @@ import numpy as np
 compile_args = ['-O3', '-ffast-math']
 link_args = []
 
-if not 'BUILD_PLATFORM_INDEPENDENT' in environ:
-    #non-agnostic build
+if 'BUILD_PLATFORM_INDEPENDENT' not in environ:
+    #non-portable/agnostic build
     compile_args.append('-march=native')
 
-if not 'BUILD_NO_OPENMP' in environ:
+if 'BUILD_NO_OPENMP' not in environ:
     #openmp support
     compile_args.append('-fopenmp')
     link_args.append('-fopenmp')

@@ -86,10 +86,10 @@ class BandWeights(BandBase, FPLOFile):
         # _1: energy-related?
         # _2: number of k_points sampled
         # _3: number of weights, should be greater or equal n_bands or 0 (?)
-        # _4: number of bands (1), ?
+        # _4: number of bands
         # _5: number of spin states
-        # _6: ?
-        # _7: number of bands (2), ?
+        # _6: index of first band
+        # _7: index of last band
 
         columns = next(weights_file)
         columns = re.sub("[ ]{1,}", " ", columns)
@@ -188,7 +188,7 @@ class Band(BandBase, FPLOFile):
             log.info('No associated FPLORun, cannot convert fractional FPLO units (2pi/a) to k')
             return self._data
 
-        # convert fractional coordinates to k-space coordinates
+        # convert FPLO reciprocal coordinates to k-space coordinates
         k = self.run.fplo_to_k(self._data['frac'])
 
         view_type = np.dtype([('k', k.dtype, (3,))])
@@ -201,6 +201,8 @@ class Band(BandBase, FPLOFile):
         """Returns the band data folded back to the first BZ and applies
         symmetry operations. Returns an index array to reduce memory usage."""
 
+        # the band structure has the Laue symmetry of the crystal (Neumann's principle)
+        # (and in case of degenerate spins , then also inversion symmetry, due to time reversal)
         # get symmetry operations from point group, in rotated cartesian coords
         symm_ops = self.run.point_group_operations
 
@@ -213,13 +215,21 @@ class Band(BandBase, FPLOFile):
     @cached_property
     def padded_symm_data(self):
         k = self.symm_data['k']
-        ksamp_lattice = find_lattice(k)
+        ksamp_lattice = find_lattice(k)  # attempt to find a regular lattice spanning the k-points
         extra_k = fill_bz(k, self.run.primitive_lattice.reciprocal_lattice, ksamp_lattice=ksamp_lattice, pad=True)
         #extra_k, extra_ijk = pad_regular_sampling_lattice(k_fill, ksamp_lattice=ksamp_lattice)
-        extra_k_frac = (extra_k @ self.run.primitive_lattice.reciprocal_lattice.inv_matrix + 1e-4) % 1 -1e-4 # k to reciprocal lattice vectors parallelepiped
-        # 1e-4 for consistency even with float inaccuracies
 
-        lattice_ijk = extra_k_frac @ self.run.primitive_lattice.reciprocal_lattice.matrix @ ksamp_lattice.inv_matrix
+        # now we need to determine which of the original k-points filling the BZ zone
+        # these extra k-points correspond to
+
+        #k_frac = (k @ self.run.primitive_lattice.reciprocal_lattice.inv_matrix + 1e-4) % 1 - 1e-4
+
+        # k to reciprocal lattice vectors parallelepiped
+        #extra_k_frac = (extra_k @ self.run.primitive_lattice.reciprocal_lattice.inv_matrix + 1e-4) % 1 - 1e-4
+        # 1e-4 for consistency even with float inaccuracies around edges
+
+        #lattice_ijk = extra_k_frac @ self.run.primitive_lattice.reciprocal_lattice.matrix @ ksamp_lattice.inv_matrix
+        lattice_ijk = backfold_k_parallelepiped(self.run.primitive_lattice.reciprocal_lattice, extra_k) @ ksamp_lattice.inv_matrix
         lattice_ijk = list(map(tuple, np.rint(lattice_ijk).astype(int)))  # == extra_ijk folded back to parallelepiped, todo check residuals
 
         new_data = self._gen_band_data_array(len(self.symm_data) + len(extra_k),
@@ -276,12 +286,12 @@ class Band(BandBase, FPLOFile):
         lattice = Lattice(basis).get_niggli_reduced_lattice()
 
         if not lattice.is_orthogonal:
-            log.warning('Non-orthogonal grid detected, reshape_gridded_data will return `None`')
+            log.notice('Non-orthogonal grid detected, reshape_gridded_data will return `None`')
             return None
 
         if np.logical_not(np.isclose(lattice.matrix, 0)).sum() > 3:
             log.debug(lattice)
-            log.warning('Rotated orthogonal grid not implemented')
+            log.warning('Rotated orthogonal grid not yet implemented')
             return None
 
         xs, ys, zs = axes = detect_grid(data['k'])
@@ -370,7 +380,12 @@ class Band(BandBase, FPLOFile):
 
     def get_interpolator(self, data=None, kind=None, bands=None):
         """Returns an interpolator that accepts sampling points of shape (..., 3)
-        and returns energy levels of shape (..., n_e)"""
+        and returns energy levels of shape (..., n_e).
+
+        If the sampling points span a rectilinear grid in cartesian coords, a
+        rectilinear interpolator is returned. Otherwise, a triangulated
+        interpolator is returned.
+        """
 
         if data is None or data == 'padded_symm':
             data = self.padded_symm_data
@@ -436,6 +451,10 @@ class Band(BandBase, FPLOFile):
         `k` is the coordinate of the band data in k-space.
         `ìdx` is an index of `data`, where the band data equivalent to `k` can
         be found.
+
+        `basis` is a 3x3 matrix that is used to transform the k-space to a
+        different basis in which the symmetry operations are applied.
+        TODO: apply to operators instead, since typically they are fewer
         """
 
         k_points = data['k']
@@ -455,7 +474,7 @@ class Band(BandBase, FPLOFile):
         new_data_idx = remove_duplicates(new_data_idx)
 
         if basis is not None:
-            new_data_idx['k'] = new_data_idx['k'] @ basis # from basis vectors to cartesian
+            new_data_idx['k'] = new_data_idx['k'] @ basis  # from basis back to cartesian
 
         return new_data_idx
 

@@ -86,8 +86,7 @@ def find_basis(lattice_points):
     lattice_points = lattice_points[valid]
     dists = dists[valid]
     
-    n=12
-    
+    n = 12
     # find n shortest vectors
     partition = np.argpartition(dists, n)[:n]
     order = np.argsort(dists[partition])
@@ -121,6 +120,7 @@ def find_basis(lattice_points):
         diff = frac - frac_int
 
         max_diff = np.linalg.norm(diff, axis=1).max()
+        log.debug('find_basis max_diff {}', max_diff)
         assert max_diff < 1e-4, f'max_diff {max_diff}'  # absolute error
 
         # assert grid has no major holes (e.g. basis too small)
@@ -195,7 +195,7 @@ def wigner_seitz_neighbours(lattice):
     vor = Voronoi(ksamp_lattice_points)
 
     ws_nbs = frozenset(itertools.chain.from_iterable(
-        set(a) for a in vor.ridge_points if idx_000 in a))  - {idx_000}
+        set(a) for a in vor.ridge_points if idx_000 in a)) - {idx_000}
     ws_nbs = np.array(list(ws_nbs))
 
     ws_nbs = vor.points[ws_nbs] @ lattice.inv_matrix
@@ -205,6 +205,7 @@ def wigner_seitz_neighbours(lattice):
 
 
 def fill_bz(k, reciprocal_lattice, ksamp_lattice=None, pad=False):
+    """fills the first BZ with k-points of a given sampling lattice"""
     ksamp_lattice = ksamp_lattice or find_lattice(k)
     neighbours_lattice = wigner_seitz_neighbours(ksamp_lattice)
 
@@ -348,12 +349,11 @@ def backfold_k(lattice, b):
 
 
 def remove_duplicates(data):
-    """Remove non-unique k-points from data"""
+    """Remove non-unique k-points from data. Order is not preserved."""
 
     unique, idx = np.unique(data['k'].round(decimals=5),
                             return_index=True, axis=0)
-
-    log.debug('deleting {} duplicates from band data', len(data) - len(idx))
+    log.debug('deleting {} duplicates from band data ({} elements total)', len(data) - len(idx), len(data))
 
     data = data[idx]
     return data
