@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import re
+from io import StringIO
 from itertools import zip_longest
 from functools import cached_property
 
@@ -61,7 +62,10 @@ class BandBase(object):
         idx_band = np.any(np.abs(self.data['e'] - e) < tol, axis=0)
         return np.where(idx_band)[0]
 
-    def bands_within(self, e_lower=-0.025, e_upper=0.025):
+    def bands_within(self, e_lower, e_upper=None):
+        """Returns the indices of bands which are within a certain energy range"""
+        if e_upper is None:
+            e_upper = -e_lower
         e = (e_lower + e_upper) / 2
         tol = np.abs(e_upper - e_lower) / 2
         return self.bands_at_energy(e=e, tol=tol)
@@ -461,48 +465,76 @@ class Hamiltonian(FPLOFile):
     _sections = ('RTG', 'lattice_vectors', 'centering', 'fullrelativistic', 'have_spin_info', 'nwan', 'nspin',
            'wannames', 'wancenters')
 
-    @loads(*_sections, 'data_raw')
+    @loads(*(s+'_raw' for s in _sections), 'data_raw')
     def load(self):
-        hamdata_file = open(self.filepath, 'r')
+        with open(self.filepath, 'r') as hamdata_file:
+            sections = iter(self._sections)
+            s = next(sections)
+            data = []
+            section_data = None
 
-        sections = iter(self._sections)
-        s = next(sections)
-        data = []
-        section_data = None
-
-        for i, line in enumerate(hamdata_file):
-            if line.startswith("{}:".format(s)):
-                data.append(section_data)
-                try:
-                    s = next(sections)
-                except StopIteration:
-                    s = 'spin'
-                section_data = ""
-            else:
-                section_data += line
-        data.append(section_data)
-
-        print(list(zip(self._sections, data[1:])))
+            for i, line in enumerate(hamdata_file):
+                if line.startswith("{}:".format(s)):
+                    data.append(section_data)
+                    try:
+                        s = next(sections)
+                    except StopIteration:
+                        s = 'spin'
+                    section_data = ""
+                else:
+                    section_data += line
+            data.append(section_data)
 
         return data[1:]
 
     @cached_property
-    def matrix(self):
-        data_raw = self.data_raw
-
-        ftype = np.float32
-        dtype = []
-        dtype.append(('Tij', ftype, (3,)))
-        dtype.append(('Hij', np.csingle))
-
-        #matrix = np.zeros((nwan, nwan), dtype)
-
-
-        re.compile(r"(?<=Tij, Hij:\n)^(end Tij, Hij:\n)*(?=end Tij, Hij:\n)", flags=re.MULTILINE)
-
-
-        return "yolo"
+    def RTG(self):
+        return self.RTG_raw.strip().lower() == 't'
 
     @cached_property
-    def hoppings(self):
-        pass
+    def fullrelativistic(self):
+        return self.fullrelativistic_raw.strip().lower() == 't'
+
+    @cached_property
+    def have_spin_info(self):
+        return self.have_spin_info_raw.strip().lower() == 't'
+
+    @cached_property
+    def nspin(self):
+        return int(self.nspin_raw)
+
+    @cached_property
+    def nwan(self):
+        return int(self.nwan_raw)
+
+    @cached_property
+    def wannames(self):
+        return self.wannames_raw.strip().split('\n')
+
+    @cached_property
+    def lattice_vectors(self):
+        return np.genfromtxt(StringIO(self.lattice_vectors_raw), dtype=np.float64)
+
+    @cached_property
+    def centering(self):
+        return np.genfromtxt(StringIO(self.centering_raw), dtype=np.float64)
+
+    @cached_property
+    def wancenters(self):
+        return np.genfromtxt(StringIO(self.wancenters_raw), dtype=np.float64)
+
+    @cached_property
+    def data(self):
+        blockre = re.compile(r"(?<=Tij, Hij:\n) *(?P<i>[0-9]+) +(?P<j>[0-9]+)\n"
+                             r"(?P<TH>[0-9 E+-\.\n]*)(?=end Tij, Hij:\n)", flags=re.MULTILINE)
+        hop = {}
+        for i, j, TH in blockre.findall(self.data_raw):
+            i, j = int(i), int(j)
+            TH = np.genfromtxt(StringIO(TH), dtype=np.float64)
+            TH = TH.view([('Tij', np.float64, (3,)), ('Hij', np.cdouble)])
+            if len(TH):
+                TH = TH[:, 0]
+            hop[(i, j)] = TH  # if i, j repeat, second one should be second spin sort
+        if self.nspin != 1:
+            log.warning("nspin != 1, but only last spin channel is read")
+        return hop
