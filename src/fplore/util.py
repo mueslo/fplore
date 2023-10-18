@@ -269,7 +269,7 @@ def backfold_k_old(lattice, b):
 
     # to reduce problems due to translational equivalence (borders of BZ)
     # we directly fold to the parallelepiped spanned by the reciprocal lattice basis
-    b = backfold_k_parallelepiped(lattice, b)
+    b = backfold_k_parallelepiped(lattice, b, 0.5+BOUNDARY_ATOL)
 
     b_shape = b.shape
     b = b.reshape(-1, 3)  # for some reason it is faster WITH a reshape

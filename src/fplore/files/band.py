@@ -16,7 +16,7 @@ from .base import FPLOFile, writeable, loads
 from ..logging import log
 from ..util import (cartesian_product, find_basis, detect_grid,
                     remove_duplicates, snap_to_grid, fill_bz,
-                    find_lattice)
+                    find_lattice, backfold_k_parallelepiped)
 
 
 # todo unify/subclass Band parser
@@ -251,10 +251,10 @@ class Band(BandBase, FPLOFile):
     def ksamp_idx_map(self, ksamp_lattice):
         """dict : ijk k-sample lattice coordinates in basis parallelepiped -> unique idx"""
         data = self.symm_data
-        frac = (data['k'] @ self.run.primitive_lattice.reciprocal_lattice.inv_matrix +1e-4) % 1 -1e-4  # k to reciprocal lattice vectors parallelepiped
+        # k to reciprocal lattice vectors parallelepiped
 
         # lattice_ijk maps k sample ijk values to unique index
-        lattice_ijk = frac @ self.run.primitive_lattice.reciprocal_lattice.matrix @ ksamp_lattice.inv_matrix
+        lattice_ijk = backfold_k_parallelepiped(self.run.primitive_lattice.reciprocal_lattice, data['k']) @ ksamp_lattice.inv_matrix
         lattice_ijk = map(tuple, np.rint(lattice_ijk).astype(int))
 
         return dict(zip(lattice_ijk, data['idx']))  # map sampling lattice ijk to unique index
@@ -344,9 +344,8 @@ class Band(BandBase, FPLOFile):
                 new_data[len(data):]['idx'] = -1
             if missing_coords_strategy == 'backfold':
                 # find exact matches
-                all_k = new_data['k'].copy()
-                all_k = (all_k @ self.run.primitive_lattice.reciprocal_lattice.inv_matrix + 1e-4) % 1 -1e-4 # k to reciprocal lattice vectors parallelepiped
-                all_k = all_k @ self.run.primitive_lattice.reciprocal_lattice.matrix
+                all_k = backfold_k_parallelepiped(
+                    self.run.primitive_lattice.reciprocal_lattice, new_data['k'])
 
                 lattice_ijk = all_k @ lattice.inv_matrix
                 lattice_ijk_int = np.rint(lattice_ijk).astype(int)
