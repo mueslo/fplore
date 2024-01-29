@@ -88,7 +88,7 @@ class FPLORun(object):
 
     @property
     def cellrotation(self):
-        """Reproduces the cell rotation matrix as present in XFPLO structure dialog."""
+        """Reproduces the normalized cell rotation matrix as present in XFPLO structure dialog."""
         try:
             cellrotation = self["=.in"].structure_information.cellrotation
         except AttributeError:
@@ -97,10 +97,10 @@ class FPLORun(object):
         if cellrotation.active is False:
             return np.eye(3)
         Rmat = np.zeros((3, 3))
-        Rmat[0] = cellrotation.newx
-        Rmat[2] = cellrotation.newz
+        Rmat[0] = cellrotation.newx  # not necessarily normalized!
+        Rmat[2] = cellrotation.newz  # not necessarily normalized!
         Rmat[1] = np.cross(Rmat[2], Rmat[0])
-        return Rmat
+        return Rmat/np.linalg.norm(Rmat, axis=1)[:, np.newaxis]
 
     @property
     def lattice(self):
