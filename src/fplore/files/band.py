@@ -481,7 +481,7 @@ class Band(BandBase, FPLOFile):
 class Hamiltonian(FPLOFile):
     __fplo_file__ = ("+hamdata",)
     _sections = ('RTG', 'lattice_vectors', 'centering', 'fullrelativistic', 'have_spin_info', 'nwan', 'nspin',
-           'wannames', 'wancenters')
+           'wannames', 'wancenters', 'symmetry')
 
     @loads(*(s+'_raw' for s in _sections), 'data_raw')
     def load(self):
@@ -543,16 +543,126 @@ class Hamiltonian(FPLOFile):
 
     @cached_property
     def data(self):
-        blockre = re.compile(r"(?<=Tij, Hij:\n) *(?P<i>[0-9]+) +(?P<j>[0-9]+)\n"
+        blockre = re.compile(r"(?<=Tij, Hij:\n) *(?P<i>[0-9]+) +(?P<j>[0-9]+) *\n"
                              r"(?P<TH>[0-9 E+-\.\n]*)(?=end Tij, Hij:\n)", flags=re.MULTILINE)
         hop = {}
         for i, j, TH in blockre.findall(self.data_raw):
-            i, j = int(i), int(j)
+            i, j = int(i)-1, int(j)-1  # convert 1-based to native 0-based indexing
             TH = np.genfromtxt(StringIO(TH), dtype=np.float64)
-            TH = TH.view([('Tij', np.float64, (3,)), ('Hij', np.cdouble)])
+            TH = TH.view([('T', np.float64, (3,)), ('H', np.cdouble)])
             if len(TH):
                 TH = TH[:, 0]
             hop[(i, j)] = TH  # if i, j repeat, second one should be second spin sort
         if self.nspin != 1:
             log.warning("nspin != 1, but only last spin channel is read")
         return hop
+
+    def cluster_matrix(self, loc_center=(0,0,0), radius=4.0):
+        """Return the Hamiltonian matrix of just the cluster (within `radius`)
+        around `loc_center` including all intra-cluster hopping.
+
+        :param loc_center: location of the center of the cluster (element of self.wancenters)
+        :param radius: radius of the cluster in Bohr radii (default 4.0)
+        :return cluster_matrix: Hamiltonian matrix of hopping within the cluster
+            blocks sorted by cluster_loc key order, intra-block sorted by cluster_idx key order
+        :return cluster_loc: cluster definition
+            dictionary mapping cluster locations to corresponding Wannier site index
+        :return cluster_idx: Wannier site definition
+            dictionary mapping Wannier site index to contained Wannier orbital indices (self.wannames/self.wancenters)
+        :return uidx: inverse of cluster_idx
+            array mapping Wannier orbital indices (self.wannames/self.wancenters) to cluster_idx keys
+
+        Note: written assuming atomically centered Wannier functions. No guarantees what the output is otherwise.
+        """
+        ATOL = 1e-2  # float threshold below which we consider a translation vector square sum to be zero
+        #NOTE: units of length appear to always be in Bohr radii in hamdata
+
+        # find all unique locations, their indices, and their counts, self.wancenters should have no float error(!)
+        # essentially a unique ID of translationally equivalent sites
+        # locs: loc -> uidx
+        # uidx: idx -> uidx
+        locs, uidx, count = np.unique(self.wancenters, axis=0, return_inverse=True, return_counts=True)
+        idx_d = {i: np.argwhere(uidx == i)[:, 0] for i in range(len(locs))}  # uidx -> idx
+        uidx_center = np.nonzero((loc_center == locs).all(axis=1))[0][0]  # find index of loc_center in locs
+
+        # generate cluster, i.e. find all ligands within radius of loc_center
+        # a cluster doesn't care about translational equivalence, so we use real locations instead of uidx
+        hashcoord = lambda loc: tuple(loc)  # hashable vector, locs should have no float error! no arithmetic on loc!
+        cluster_loc = {hashcoord(loc_center): uidx_center}  # add central ion to cluster; loc -> uidx
+        for ic in idx_d[uidx_center]:  # loop over all wannier orbitals of central ion
+            for il, uidxl in enumerate(uidx):  # loop over all wannier orbitals of candidate ligands (*including* central ion for e.g. unary compounds)
+                T = self.data[ic, il]['T']
+                dists2 = (T ** 2).sum(axis=1)
+                hops = T[np.logical_and(dists2 < radius ** 2, dists2 > ATOL)]  # filter out hops outside radius & on-site
+                for hop in hops:
+                    loc = locs[uidx_center] + hop
+                    cluster_loc[hashcoord(loc)] = uidxl
+
+        # get number of blocks (== number of sites)
+        nblocks = len(cluster_loc)
+        #blocksizes = [count[ui] for ui in cluster_loc.values()]
+
+        # generate array of locations in cluster from cluster_loc dict
+        arr_cluster_loc = np.array(list(cluster_loc.keys()))
+        # get all translation vectors between cluster sites, i.e. blocks
+        Tblock = arr_cluster_loc[np.newaxis] - arr_cluster_loc[:, np.newaxis]
+
+        # get all hoppings between cluster sites, i.e. blocks
+        Hblocks = {}
+
+        # loop over all blocks
+        for ib, (loci, uidxi) in enumerate(cluster_loc.items()):
+            for jb, (locj, uidxj) in enumerate(list(cluster_loc.items())[ib:], ib):
+                # T = locj - loci
+                Hblocks[ib, jb] = Hblock = np.zeros((count[uidxi], count[uidxj]), dtype=np.cdouble)
+
+                # loop over all hoppings between sites in block ib and jb
+                for i, idxi in enumerate(idx_d[uidxi]):
+                    for j, idxj in enumerate(idx_d[uidxj]):
+                        # would be nicer to have an indexed version of translation vectors, but this is fine for now
+                        entry = np.nonzero(((self.data[idxi, idxj]['T'] - Tblock[ib, jb]) ** 2).sum(axis=1) < ATOL)[0]
+
+                        if entry.size:
+                            assert entry.size == 1  # there should only be one matching translation vector
+                            Hblock[i, j] = self.data[idxi, idxj]['H'][entry[0]]
+                Hblocks[jb, ib] = Hblock.conj().T
+
+        Hcluster = np.block([
+            [Hblocks[i, j] for j in range(nblocks)] for i in range(nblocks)])
+
+        return Hcluster, cluster_loc, idx_d, uidx
+
+    @staticmethod
+    def cluster_diag(Hcluster, n_center, transform_center=None):
+        """
+        Return cluster Hamiltonian in symmetry adapted basis, i.e. transforming the basis to make the
+        interaction between the central ion and the ligands as diagonal as possible.
+
+        :param Hcluster: cluster Hamiltonian matrix
+        :param n_center: number of orbitals on central ion (has to be first in cluster)
+        :param transform_center: if True, allow also for a unitary transformation of the cluster center site
+            True or 'interaction': SVD decomposition, interaction diagonal
+            False: polar decomposition, no transformation of center, interaction matrix at least symmetric
+            'local': polar decomposition plus transformation of center site to diagonalize local Hamiltonian
+        :return Hcluster: cluster Hamiltonian matrix in symmetry adapted basis
+        :return U: unitary transformation matrix
+        """
+
+        from scipy import linalg
+
+        Up, Sigma, Ud_H = linalg.svd(Hcluster[n_center:, :n_center])
+        #Sigma = linalg.diagsvd(Sigma, len(Up), len(Um_T))
+
+        n_ligands = len(Hcluster) - n_center
+        assert n_ligands >= n_center
+        if transform_center == 'local':  # diag(Ud, Up).diag(Ud^H, Ud^H, 1).diag(ev, ev, 1)
+            ev = linalg.eigh(Hcluster[:n_center, :n_center])[1]
+            U = linalg.block_diag(
+                ev, (Up @ linalg.block_diag(Ud_H @ ev, np.eye(n_ligands - n_center))))
+        elif transform_center:
+            U = linalg.block_diag(Ud_H.T.conj(), Up)
+        else:  # diag(Ud, Up).diag(Ud^H, Ud^H, 1)
+            U = linalg.block_diag(
+                np.eye(n_center), (Up @ linalg.block_diag(Ud_H, np.eye(n_ligands - n_center))))
+
+        return U.T.conj() @ Hcluster @ U, U
