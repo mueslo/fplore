@@ -548,10 +548,8 @@ class Hamiltonian(FPLOFile):
         hop = {}
         for i, j, TH in blockre.findall(self.data_raw):
             i, j = int(i)-1, int(j)-1  # convert 1-based to native 0-based indexing
-            TH = np.genfromtxt(StringIO(TH), dtype=np.float64)
-            TH = TH.view([('T', np.float64, (3,)), ('H', np.cdouble)])
-            if len(TH):
-                TH = TH[:, 0]
+            TH = np.genfromtxt(StringIO(TH), dtype=np.float64, ndmin=2).reshape((-1, 5))
+            TH = TH.view([('T', np.float64, (3,)), ('H', np.cdouble)]).squeeze(axis=1)
             hop[(i, j)] = TH  # if i, j repeat, second one should be second spin sort
         if self.nspin != 1:
             log.warning("nspin != 1, but only last spin channel is read")
