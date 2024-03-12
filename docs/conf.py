@@ -21,7 +21,7 @@ fplore_version = version('fplore')
 
 example_data_dir = '../example_data'
 example_data_url = ('https://github.com/mueslo/fplore_example_data/'
-                    'releases/download/v3/example_data.tar.gz')
+                    'releases/download/v4/example_data.tar.gz')
 
 if not os.path.exists(example_data_dir):
     print('Downloading example data')
