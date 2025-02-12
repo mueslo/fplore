@@ -52,7 +52,7 @@ jobs:
             cibw_archs: "x86_64"
           - os: windows-latest
             cibw_archs: "AMD64"
-          - os: macos-latest
+          - os: macos-13
             cibw_archs: "x86_64"
             macos_use_gcc: true  # can get openmp to work with GCC
           - os: macos-latest
