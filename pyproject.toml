@@ -1,8 +1,8 @@
 [build-system]
 requires = [
-    "setuptools>=61.2",
-    "cython~=0.29",
-    "numpy~=1.21",
+    "setuptools>=80",
+    "cython~=3.1",
+    "numpy~=2.2",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -12,7 +12,7 @@ version = {attr = "fplore.__version__"}
 [project]
 name = "fplore"
 description = "FPLO run evaluation"
-requires-python = ">=3.8, <4"
+requires-python = ">=3.10, <3.14"
 keywords = ["dft", "fplo", "physics", "chemistry"]
 license = {text = "GPLv3"}
 urls = {Homepage = "https://github.com/mueslo/fplore"}
@@ -20,25 +20,24 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Chemistry",
 ]
 dependencies = [
-    "numpy~=1.21",
-    "scipy~=1.7",
-    "pymatgen~=2022.5.19",
+    "numpy~=2.2",
+    "scipy~=1.15",
+    "pymatgen~=2025.4",
     "orderedattrdict~=1.5",
-    "logbook~=1.5",
-    "pyparsing~=3.0",
+    "logbook~=1.8",
+    "pyparsing~=3.2",
     "progressbar2~=3.38",
-    "matplotlib~=3.4",
+    "matplotlib~=3.10",
 ]
 dynamic = ["version"]
 
@@ -51,7 +50,7 @@ tests = [
     "tox",
 ]
 tests-core = [
-    "pytest~=7.4",
+    "pytest~=8.3",
     "pytest-cases",
     "pytest-logbook",
 ]

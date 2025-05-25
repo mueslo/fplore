@@ -4,10 +4,9 @@
 # cython: wraparound=False
 # cython: embedsignature=True
 cimport numpy as np
-from numpy.math cimport INFINITY
 cimport cython
 import numpy as np
-from libc.math cimport sqrt
+from libc.math cimport sqrt, INFINITY
 from cython.parallel cimport prange
 
 cdef double BOUNDARY_ATOL = 1e-6
