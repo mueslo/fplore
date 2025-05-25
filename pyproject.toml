@@ -36,7 +36,7 @@ dependencies = [
     "orderedattrdict~=1.5",
     "logbook~=1.8",
     "pyparsing~=3.2",
-    "progressbar2~=3.38",
+    "progressbar2>=3.38,<5.0",
     "matplotlib~=3.10",
 ]
 dynamic = ["version"]
