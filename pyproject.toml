@@ -50,7 +50,7 @@ tests = [
     "tox",
 ]
 tests-core = [
-    "pytest~=8.3",
+    "pytest>=8.3,<10.0",
     "pytest-cases",
     "pytest-logbook",
 ]
